@@ -1,3 +1,0 @@
-/goal /obsidian-injector Il tuo obiettivo è innestare elegantementetutte le informazioni presenti in @folder:{path/to/inbox/folder} nella cartella del vault @folder:{path/to/vault/folder}.
-Fai attenzione a mantenere lo stile linguistico e stilistico del vault e segui le tue direttive. Il vault potrebbe già contenere note che riprendono i temi e gli argomenti trattati nei file .md della cartella di Inbox.
-Individua quali note devono essere create, quali devono essere arrichite, per poi creare la note o innestare le informazioni in quelle già presenti.

@@ -184,7 +184,7 @@ def file_report(filepath: str, concepts: set, all_hits: dict) -> dict:
     new_concepts.sort()
     return {"file": filepath, "collisions": collisions, "new_concepts": new_concepts}
 
-def run_recon(inbox_dir: Path, vault_dir: Path, limit: int = None) -> list:
+def run_recon(inbox_dir: Path, vault_dir: Path, limit: int = None, offset: int = 0) -> list:
     per_file: dict[str, set] = {}
     all_concepts: set = set()
     
@@ -199,7 +199,9 @@ def run_recon(inbox_dir: Path, vault_dir: Path, limit: int = None) -> list:
         filtered_files.append(f)
         
     if limit is not None:
-        filtered_files = filtered_files[:limit]
+        filtered_files = filtered_files[offset:offset+limit]
+    else:
+        filtered_files = filtered_files[offset:]
         
     for md in filtered_files:
         cs = dedupe(extract_concepts(md))
@@ -219,12 +221,6 @@ PRIORITY_LABELS = {
     1: "REVIEW (body match, high hits — potential new spoke)",
     2: "LIKELY SKIP (sparse mentions)",
 }
-
-def count_vault_notes(vault_dir: Path) -> int:
-    try:
-        return sum(1 for _ in iter_vault_md(vault_dir))
-    except Exception:
-        return 0
 
 def render_human(reports: list, vault_root: Path) -> str:
     """Markdown renderer for terminal/debugging use; not consumed by the Router."""
@@ -253,11 +249,9 @@ def render_human(reports: list, vault_root: Path) -> str:
             lines.append(f"\n### NEW ({len(r['new_concepts'])})")
             lines.append(", ".join(r["new_concepts"]))
             
-    total_vault_notes = count_vault_notes(vault_root)
     lines.append(f"\n=== RECON STATS ===")
     lines.append(f"Inbox notes processed: {len(reports)}")
     lines.append(f"Vault notes intersected: {len(unique_vault_notes)}")
-    lines.append(f"Total notes in vault: {total_vault_notes}")
     return "\n".join(lines)
 
 # ---- CLI ------------------------------------------------------------------
@@ -269,6 +263,8 @@ if __name__ == "__main__":
     parser.add_argument("--vault", required=True, type=Path)
     parser.add_argument("--limit", type=int, default=None,
                         help="Limit recon to the first N files sorted alphabetically (ignores 'done' subfolders)")
+    parser.add_argument("--offset", type=int, default=0,
+                        help="Offset from the first file to start processing (ignores 'done' subfolders)")
     parser.add_argument("--format", choices=["json", "human"], default="json",
                         help="json (default, for Router) or human (markdown, for terminal review)")
     args = parser.parse_args()
@@ -277,18 +273,22 @@ if __name__ == "__main__":
         print(json.dumps({"error": "inbox or vault path does not exist"}))
         exit(1)
 
-    reports = run_recon(args.inbox, args.vault, limit=args.limit)
-    
-    # Calculate stats for stderr output
-    unique_vault_notes = set()
-    for r in reports:
-        for c in r.get("collisions", []):
-            for h in c.get("hits", []):
-                unique_vault_notes.add(h["path"])
-    total_vault_notes = count_vault_notes(args.vault)
-    sys.stderr.write(f"\n[RECON STATS] Processed {len(reports)} inbox notes intersected with {len(unique_vault_notes)} unique vault notes. Total notes in vault: {total_vault_notes}\n")
+    reports = run_recon(args.inbox, args.vault, limit=args.limit, offset=args.offset)
 
     if args.format == "human":
+        # Human mode: emit the stats line for terminal readers and render markdown.
+        unique_vault_notes = set()
+        for r in reports:
+            for c in r.get("collisions", []):
+                for h in c.get("hits", []):
+                    unique_vault_notes.add(h["path"])
+        sys.stderr.write(
+            f"\n[RECON STATS] Processed {len(reports)} inbox notes "
+            f"intersected with {len(unique_vault_notes)} unique vault notes.\n"
+        )
         print(render_human(reports, args.vault))
     else:
+        # JSON mode (default, Router-consumed): stdout must be PARSEABLE JSON ONLY.
+        # No stderr stats — Hermes's terminal() tool can fold stderr into the
+        # captured output stream and contaminate downstream json.load().
         print(json.dumps(reports, indent=2, ensure_ascii=False))

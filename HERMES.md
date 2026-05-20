@@ -3,15 +3,20 @@
 You orchestrate the note-taking pipeline for the **Injector** (ingestion), the **Curator** (restructuring/decoupling), and the **Merger** (duplicate note unification) pipelines.
 
 ## Script & Configuration Paths
-Depending on the environment, the python script folder paths are:
+Depending on the environment, the python script and skill root folder paths are:
 - **Vault Deployment**:
   - Injector & Curator `<SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/scripts/`
+  - Injector & Curator `<SKILL_ROOT>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/`
   - Merger `<MERGER_SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-merger/scripts/`
 - **Skill Repository**:
   - Injector & Curator `<SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-injector/scripts/`
+  - Injector & Curator `<SKILL_ROOT>`: `~/.hermes/skills/note-taking/obsidian-injector/`
   - Merger `<MERGER_SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-merger/scripts/`
 
-Locate the active script folders first (e.g. check if the vault contains `.hermes/` or use the user home fallback) before running scripts in `execute_code`.
+- **Prompts directory** (both deployments): `<SKILL_ROOT>/prompts/`
+  Used by Router actions that need to read `distiller_prompt.txt`.
+
+Locate the active skill folder and prompts directory first (e.g. check if the vault contains `.hermes/` or use the user home fallback) before running scripts or reading template files.
 
 ## Skill & Workflow Selection
 
@@ -22,12 +27,13 @@ You can dynamically choose which workflow to activate based on the target files 
 | Action                               | Who      | How                                  |
 |--------------------------------------|----------|--------------------------------------|
 | Extract concepts & check collisions   | Router   | execute_code (Python scripts)        |
+| Compare inbox-vs-vault concepts      | Distiller subagent | delegate_task with custom prompt + payload pointers on disk (2 read_file calls: one for prompt, one for payload) |
 | Decide enrich/create/skip/reformat   | Router   | internal reasoning                   |
 | Generate markdown body per write     | Router   | internal reasoning                   |
 | Execute write_file / patch / move    | Router   | direct file-tool primitives          |
 | Validate written files               | Router   | execute_code (Python static linter)  |
 
-**Never** use subagents for routine extraction or writing files. Use `execute_code` for mechanical multi-step work (reading files, searching, linting). Delegate reasoning-heavy comparison and extraction tasks to a subagent (Sub-Agent Context Isolation) if the inbox contains more than 20 files, or the candidate list exceeds 15 concepts.
+**Never** use subagents for routine extraction or writing files. Use `execute_code` for mechanical multi-step work (reading files, searching, linting). Delegate the inbox-vs-vault concept comparison to Distiller subagents via pre-distilled payload and custom prompt files on disk (one read_file call on the generated prompt file, and one read_file call on the payload file). Partition large payloads into batches at the `distiller_payload.py` `--limit`/`--offset` stage rather than at the inbox stage.
 
 ---
 
@@ -37,42 +43,72 @@ You can dynamically choose which workflow to activate based on the target files 
 Used to ingest external source notes from an `<INBOX>` folder into a designated `<TARGET>` folder under `<HUB_NAME>`.
 
 - **Phase 1 — Mechanical Recon & Micro-Batching**:
-  * **Large Inbox (>20 notes)**: The Router **must** partition and process the inbox in sequential batches (e.g. 5–10 files at a time) using the `--limit` flag on `recon.py` directly. Do not copy files to scratch.
-  * **Small Inbox (<= 20 notes)**: Can process directly or in batches using `--limit`.
-  * To run recon on a specific batch size (e.g., 5 files), use the `--limit` flag:
+  * By default, the Router **must** run reconnaissance over the entire `<INBOX>`,
+    explicitly separating stdout (the JSON report) from stderr (any diagnostics):
+    
     ```bash
-    python3 <SCRIPTS_DIR>/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>" --limit 5
+    python3 /recon.py --inbox "" --vault "" \
+        > /tmp/recon.json 2>/tmp/recon.stderr
     ```
-    *(Note: `recon.py` automatically sorts files alphabetically and ignores any files already located in a `<INBOX>/done/` subfolder).*
-- **Phase 2 — Semantic Decisions**:
-  Process EVERY concept in the JSON report:
-  * **Delegation Protocol (>20 notes or >15 concepts)**:
-    - The Router spawns a clean, sequential sub-agent.
-    - Instructs the sub-agent to:
-      1. Run `recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>" --limit 5` (or `--limit 10`) to find collisions.
-      2. Read the raw text of only the processed batch files.
-      3. Compare the batch notes against vault notes.
-      4. Return a single, structured JSON decision list mapping:
-         ```json
-         {
-           "concepts": [
-             {
-               "name": "Concept Name",
-               "action": "create | enrich | skip",
-               "path": "target/path/to/note.md",
-               "content": "Clean, summarized markdown content to write or append"
-             }
-           ]
-         }
-         ```
-    - The Router reads the returned JSON list to execute the updates (Phase 3) and runs validation (Phase 4).
-    - If validation passes, the Router moves these processed files to `<INBOX>/done/`.
-    - Router repeats the cycle (spawning the next sub-agent) which automatically picks up the next batch of files.
-  * **Direct Protocol (<= 20 notes)**:
-    - The Router runs `recon.py` with `--limit 5`, directly reads the inbox files, and determines decisions:
-      - Concept is new → `create` Spoke (`<TARGET>/<slug>.md`, `AI: true`).
-      - Concept has a collision with new info signal → `enrich` (append to existing note, `AI: false`).
-      - Otherwise → `skip`.
+
+  * **Large Inbox / Truncation Fallback**: Only if the recon output is truncated (e.g. context limit exceeded or tool output cutoff) or too large to process, the Router **must** partition and process the inbox in sequential batches of **10 to 20 files** using the `--limit` and `--offset` flags on `recon.py` directly:
+    ```bash
+    python3 <SCRIPTS_DIR>/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>" --limit 15 --offset 0 > /tmp/recon.json
+    ```
+    *(Note: `recon.py` automatically sorts files alphabetically, supports pagination via --offset, and ignores any files already located in a `<INBOX>/done/` subfolder).*
+- **Phase 2.0 — Router Pre-distillation (Mechanical, no LLM)**:
+  * The Router runs `distiller_payload.py` via `execute_code` to extract excerpts from the inbox files and the colliding vault notes, packaging them into a single payload file.
+  * If the total concept count is high, the Router partitions the payload into smaller batches of ≤10 concepts each to prevent subagent context bloat:
+    ```bash
+    # Single-payload mode
+    python3 <SCRIPTS_DIR>/distiller_payload.py \
+        --recon-report /tmp/recon.json \
+        --out /tmp/distiller_payload.json
+
+    # Partitioned mode (creates /tmp/distiller_payload_0.json, _1.json, etc.)
+    python3 <SCRIPTS_DIR>/distiller_payload.py \
+        --recon-report /tmp/recon.json \
+        --max-concepts 10 \
+        --out /tmp/distiller_payload.json
+    ```
+  * The Router reads the output or the generated batch files. If only `/tmp/distiller_payload.json` exists, it proceeds to **Phase 2.1a**. If multiple numbered partition files exist, it proceeds to **Phase 2.1b**.
+
+- **Phase 2.1a — Single-batch delegation (Router → prep_delegation.py then delegate_task)**:
+  * The Router runs `prep_delegation.py` via `execute_code` to prepare the exact task context:
+    ```bash
+    python3 <SCRIPTS_DIR>/prep_delegation.py \
+        --protocol <SKILL_ROOT>/prompts/distiller_prompt.txt \
+        --payload /tmp/distiller_payload.json \
+        --substitute TARGET="<TARGET>" \
+        --out /tmp/delegation_args.json
+    ```
+  * The Router reads `/tmp/delegation_args.json` verbatim and passes the parsed tasks array directly to `delegate_task`:
+    ```python
+    tasks_data = json.loads(read_file("/tmp/delegation_args.json"))
+    delegate_task(tasks=tasks_data)
+    ```
+
+- **Phase 2.1b — Parallel batch fan-out (Router → prep_delegation.py with multiple payloads then delegate_task)**:
+  * The Router compiles all generated partition files into a single delegation argument JSON using `prep_delegation.py`:
+    ```bash
+    # Example for 3 batches
+    python3 <SCRIPTS_DIR>/prep_delegation.py \
+        --protocol <SKILL_ROOT>/prompts/distiller_prompt.txt \
+        --payload /tmp/distiller_payload_0.json \
+        --payload /tmp/distiller_payload_1.json \
+        --payload /tmp/distiller_payload_2.json \
+        --substitute TARGET="<TARGET>" \
+        --out /tmp/delegation_args.json
+    ```
+  * The Router reads `/tmp/delegation_args.json` verbatim and passes the parsed tasks array directly to `delegate_task`:
+    ```python
+    tasks_data = json.loads(read_file("/tmp/delegation_args.json"))
+    delegate_task(tasks=tasks_data)
+    ```
+  * The Sub-Agents fan out via ThreadPoolExecutor. The results return sorted by task index. The Router merges the `{"updates": [...]}` arrays from all subagent outputs into one master operations list, then proceeds to Phase 3.
+
+- **Direct Protocol (Simple / low count / bypass delegation)**:
+  * If the concepts are very few and simple, the Router directly reads the inbox notes, determines decisions, and writes the updates directly without spawning sub-agents.
 - **Phase 3 — Execute**:
   Write/patch directly. For >5 operations, use `bulk_writer.py`:
   ```bash
@@ -134,5 +170,12 @@ Used to merge duplicate notes of the same name located in different folders acro
 11. **Content Preservation & Deletion Rules** — Deleting information during curation is strictly discouraged unless it is semantic/formatting noise, you are rewriting that same concept in a more thorough/deep manner, or you verified via web search that the original text/formula/definition is incorrect.
 
 ## Hard Stops
-- Phase 1 JSON becomes too large (>200 concepts) → delegate Phase 2 decision or abort and ask user.
+- `recon.py` JSON > 200 concepts → mandatory partition via `distiller_payload.py` `--max-concepts`; never single-shot delegate.
+- Single payload > 80KB or containing too many concepts → mandatory partition via `--max-concepts` to avoid bloating subagent context.
+- Parallel batch > `max_concurrent_children` (default 3) → tool errors out rather than truncating; either shrink the batch or raise the config.
+- Distiller returns updates with `concept_name` values NOT present in the payload → abort batch and re-recon; indicates context-field truncation or model hallucination.
+- Subagent timeout (`child_timeout_seconds`, default 600s) → check `~/.hermes/logs/subagent-timeout-<session>-<timestamp>.log` for the diagnostic; usually OpenRouter rate-limit or tool-schema rejection.
 - Router context > 60k tokens at any point → stop, report incomplete plan.
+
+## Pitfalls & Shell Quoting
+- **Nested Quoting in f-strings**: When constructing python/bash execution strings, using `shell_quote(TARGET)` or similar helpers generates an already-quoted string. Do **NOT** wrap the `{shell_quote(...)}` block in extra single or double quotes (e.g. `TARGET='{shell_quote(folder)}'`), as this results in nested matching errors in the shell (e.g. `eval: unexpected EOF while looking for matching ...`). Use it as: `--substitute TARGET={shell_quote(folder)}`.

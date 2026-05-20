@@ -16,7 +16,8 @@ The curation process must adhere strictly to these principles:
 ## Optimization: Bulk Execution
 Use `execute_code` for all mechanical tasks:
 - **Phase 1**: Execute `scripts/recon.py` to iterate inbox and search vault.
-- **Phase 2**: (Bulk Writes) When Phase 2 generates a large number of operations (>5), use `execute_code` to perform mutations programmatically via `scripts/templates.py`.
+- **Phase 2.0**: Execute `scripts/distiller_payload.py` to pre-distill the payload context json.
+- **Phase 3**: (Bulk Writes) When Phase 3 generates a large number of operations (>5), use `execute_code` to perform mutations programmatically via `scripts/templates.py`.
 - **Phase 4**: Static linting of output files.
 
 ## Inputs
@@ -34,6 +35,7 @@ The Router must have access to the bundled `obsidian` skill. Confirm via:
 ## Scripts & References
 
 - `scripts/recon.py` — Phase 1 engine. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>"`
+- `scripts/distiller_payload.py` — Phase 2.0 pre-distiller. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/distiller_payload.py --recon-report /tmp/recon.json --out /tmp/distiller_payload.json`
 - `scripts/bulk_writer.py` — Phase 3 bulk writer. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/bulk_writer.py --operations "<PATH_TO_OPS_JSON>"`
 - `scripts/linter.py` — Phase 4 validator. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/linter.py --target "<TARGET>" --hub "<HUB_NAME>"`
 - `scripts/templates.py` — markdown templates (template_spoke, patch_snippet).
@@ -55,6 +57,7 @@ To discover the directory structure of the `<INBOX>` or `<TARGET>` folders clean
 
 ## Pitfalls
 - **read_file Deduplication**: When using `read_file` inside an `execute_code` loop, if a file was already read in the conversation, the tool returns a dedup message instead of content. For reliable bulk reading in scripts, use `terminal(f"cat {shell_quote(path)}")`.
-- **Semantic Noise**: `recon.py` can produce false positive collisions for generic terms (e.g., 'PIL', 'TABLE', 'ZERO'). See `references/recon-noise.md` for common noise terms and filtering strategies.
-- **Path Quoting**: Vault paths containing spaces or apostrophes (e.g., "Alex's Second Brain") must be handled with `shell_quote` when passed to `terminal()`.
+- **Semantic Noise**: `recon.py` can produce false positive collisions for generic terms (e.g., 'PIL', 'TABLE', 'ZERO'). Refer to the `NOISE_PATTERNS` filter inside `recon.py` for common noise terms and filtering strategies.
+- **Path Quoting**: Vault paths containing spaces or apostrophes (e.g., "Alex's Second Brain") must be handled with `shell_quote` when passed to `terminal()`. Do **NOT** wrap the `{shell_quote(...)}` block in extra single or double quotes (e.g. `TARGET='{shell_quote(folder)}'`), as this results in nested matching errors in the shell.
+- **distiller_payload.py Output**: The script writes JSON directly to the `--out` file path. It does NOT write to stdout — stdout only carries the stats line (e.g. `[DISTILLER-PAYLOAD] 12 inbox files, 220 concepts ...`). When running via `execute_code` with `subprocess.run(capture_output=True)`, do NOT assign the payload to `result.stdout` — read the `--out` file afterward instead.
 
