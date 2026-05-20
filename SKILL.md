@@ -5,12 +5,13 @@ description: "Inject Pipeline — ingests source markdown from an inbox into the
 
 # Obsidian Injector — Inject Pipeline
 
-## Curation Standards (Mandato di Curatela)
+## Curation Standards
 The curation process must adhere strictly to these principles:
-- **Factual Density (Massimizzazione Fattuale)**: Extract all concrete details, definitions, schemas, and examples from the source files. Avoid generalizations or hand-wavy summaries.
-- **Modular Atomicity (Atomicità Modulare)**: Avoid monolithic files. Split information into specific, granular concepts (Spoke notes) of roughly ~40 lines to ensure high-resolution modularity.
-- **YAML Frontmatter (Stile Tag YAML)**: Maintain consistent tagging style: lowercase, hyphen-separated tags describing the semantic areas (e.g. `intelligenza-artificiale`, `machine-learning`, `reti-neurali`).
-- **Scholarly Readability (Scrittura Informativa e Fruibile)**: Write in formal Italian, using bold keywords, clear structures, lists, and callout blocks (`> [!TIP]`) to make content highly usable for scholars and researchers.
+- **Factual Density**: Extract all concrete details, definitions, schemas, and examples from the source files. Avoid generalizations or hand-wavy summaries.
+- **Modular Atomicity**: Avoid monolithic files. Split information into specific, granular concepts (Spoke notes) of roughly ~40 lines to ensure high-resolution modularity.
+- **YAML Frontmatter**: Maintain consistent tagging style: lowercase, hyphen-separated tags describing the semantic areas (e.g. `intelligenza-artificiale`, `machine-learning`, `reti-neurali`).
+- **Scholarly Readability**: Write in formal Italian, using bold keywords, clear structures, lists, and callout blocks (`> [!TIP]`) to make content highly usable for scholars and researchers.
+- **Content Preservation Guardrail**: Deleting entire notes, sentences, or words without a logical and heavily weighed reason is strictly discouraged. Rather than deleting information, prioritize unifying and merging the incoming inbox content smoothly into the target vault note without losing any factual density.
 
 ## Optimization: Bulk Execution
 Use `execute_code` for all mechanical tasks:

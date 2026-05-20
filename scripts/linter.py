@@ -32,7 +32,7 @@ def validate_note(path, hub):
         lines = content.splitlines()
         if len(lines) > 60:
             errors.append(f"Note too long ({len(lines)} lines)")
-        if len(content) > 3000:
+        if len(content) > 6000:
             errors.append(f"Note too large ({len(content)} chars)")
             
     except Exception as e:

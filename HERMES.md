@@ -1,17 +1,21 @@
-# Hermes — Obsidian Note-Taking Playbook (Injector & Curator)
+# Hermes — Obsidian Note-Taking Playbook (Injector, Curator, Merger)
 
-You orchestrate the note-taking pipeline for both the **Injector** (ingesting content from an inbox folder into the vault) and the **Curator** (monolith splitting, note restructuring, and metadata/YAML tag corrections) pipelines.
+You orchestrate the note-taking pipeline for the **Injector** (ingestion), the **Curator** (restructuring/decoupling), and the **Merger** (duplicate note unification) pipelines.
 
 ## Script & Configuration Paths
-Depending on the environment, the python scripts folder `<SCRIPTS_DIR>` is located at:
-- **Vault Deployment**: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/scripts/`
-- **Skill Repository**: `~/.hermes/skills/note-taking/obsidian-injector/scripts/`
+Depending on the environment, the python script folder paths are:
+- **Vault Deployment**:
+  - Injector & Curator `<SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/scripts/`
+  - Merger `<MERGER_SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-merger/scripts/`
+- **Skill Repository**:
+  - Injector & Curator `<SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-injector/scripts/`
+  - Merger `<MERGER_SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-merger/scripts/`
 
-Locate the active `<SCRIPTS_DIR>` first (e.g. check if the vault contains `.hermes/` or use the user home fallback) before running scripts in `execute_code`.
+Locate the active script folders first (e.g. check if the vault contains `.hermes/` or use the user home fallback) before running scripts in `execute_code`.
 
 ## Skill & Workflow Selection
 
-You can dynamically choose which workflow to activate based on the target files and scope of the task. However, **if the user explicitly requests or triggers a specific skill** (for example, using prefix commands like `/obsidian-injector` or `/obsidian-curator`), you **must** prioritize and adhere to that requested workflow.
+You can dynamically choose which workflow to activate based on the target files and scope of the task. However, **if the user explicitly requests or triggers a specific skill** (for example, using prefix commands like `/obsidian-injector`, `/obsidian-curator`, or `/obsidian-merger`), you **must** prioritize and adhere to that requested workflow.
 
 ## Tool Allocation
 
@@ -68,6 +72,21 @@ Used to either **decouple** a monolithic note into Hub-and-Spoke nodes, or **ref
 - **Phase 4 — Validate**:
   Run `linter.py` to verify note atomicity, wikilink referencing, and frontmatter parsing.
 
+### 3. Obsidian Merge Workflow
+Used to merge duplicate notes of the same name located in different folders across the vault.
+
+- **Phase 1 — Locate Duplicates**:
+  Run the mechanical duplicate check script using `execute_code` (optionally targeting a specific subdirectory with `--folder`):
+  ```bash
+  python3 <MERGER_SCRIPTS_DIR>/find_duplicates.py --vault "<VAULT_ROOT>" [--folder "<SUBDIRECTORY_PATH>"]
+  ```
+- **Phase 2 — Semantic Unification**:
+  Read the contents of each duplicate note. Select a single canonical destination path (e.g. the most relevant folder). Merge the contents smoothly: retain all unique definitions, formulas, and structural links, while unifying and cleaning up the YAML tags.
+- **Phase 3 — Execution & Cleanup**:
+  Write the unified content to the canonical path (using native tools or `bulk_writer.py`). Delete all obsolete duplicate files from the vault.
+- **Phase 4 — Validate**:
+  Run `linter.py` to verify formatting, YAML validation, and maximum character length.
+
 ---
 
 ## Absorbed Principles
@@ -77,11 +96,12 @@ Used to either **decouple** a monolithic note into Hub-and-Spoke nodes, or **ref
 3. **Hub-and-Spoke** — Every Spoke note must contain a link to the main Hub (`[[<HUB_NAME>]]`) in its body text.
 4. **OFM Compliance** — Validated by the static linter script during Phase 4.
 5. **AI Provenance** — Set to `true` on generated Spoke notes, frozen at write.
-6. **Atomicity** — Keep Spoke notes targeted (~40 lines / 1500 chars maximum); enforced by the linter.
+6. **Atomicity** — Keep Spoke notes targeted (~40 lines / 6000 chars maximum); enforced by the linter.
 7. **Factual Density** — Extract and insert as much concrete, factual info as possible. Do not lose formulas, definitions, or code snippets.
 8. **Modular Atomicity** — Notes must be split into specific, granular concepts rather than compiled into monolithic lists.
 9. **YAML Frontmatter Tagging** — Format frontmatter metadata to align with the vault's existing style: tags must be lowercase and hyphen-separated (e.g., `intelligenza-artificiale`, `machine-learning`, `reti-neurali`).
 10. **Scholarly Readability** — Present concepts in Italian using a formal, clear, and academic register structured for reading by scholars. Use bullet points, bold key terms, and Obsidian callout blocks (e.g., `> [!TIP]`) to maximize information usability.
+11. **Content Preservation & Deletion Rules** — Deleting information during curation is strictly discouraged unless it is semantic/formatting noise, you are rewriting that same concept in a more thorough/deep manner, or you verified via web search that the original text/formula/definition is incorrect.
 
 ## Hard Stops
 - Phase 1 JSON becomes too large (>200 concepts) → delegate Phase 2 decision or abort and ask user.
