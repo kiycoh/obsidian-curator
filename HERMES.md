@@ -27,7 +27,7 @@ You can dynamically choose which workflow to activate based on the target files 
 | Execute write_file / patch / move    | Router   | direct file-tool primitives          |
 | Validate written files               | Router   | execute_code (Python static linter)  |
 
-**Never** use subagents for routine extraction or writing files. Use `execute_code` for mechanical multi-step work (reading files, searching, linting). Delegate reasoning-heavy tasks to a subagent ONLY if the input data (e.g., a massive inbox) exceeds your context budget.
+**Never** use subagents for routine extraction or writing files. Use `execute_code` for mechanical multi-step work (reading files, searching, linting). Delegate reasoning-heavy comparison and extraction tasks to a subagent (Sub-Agent Context Isolation) if the inbox contains more than 20 files, or the candidate list exceeds 15 concepts.
 
 ---
 
@@ -36,25 +36,55 @@ You can dynamically choose which workflow to activate based on the target files 
 ### 1. Obsidian Injector Workflow
 Used to ingest external source notes from an `<INBOX>` folder into a designated `<TARGET>` folder under `<HUB_NAME>`.
 
-- **Phase 1 — Mechanical Recon**:
-  Run `recon.py` to extract candidate concepts and search vault for collisions:
-  ```bash
-  python3 <SCRIPTS_DIR>/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>"
-  ```
+- **Phase 1 — Mechanical Recon & Micro-Batching**:
+  * **Large Inbox (>20 notes)**: The Router **must** partition and process the inbox in sequential batches (e.g. 5–10 files at a time) using the `--limit` flag on `recon.py` directly. Do not copy files to scratch.
+  * **Small Inbox (<= 20 notes)**: Can process directly or in batches using `--limit`.
+  * To run recon on a specific batch size (e.g., 5 files), use the `--limit` flag:
+    ```bash
+    python3 <SCRIPTS_DIR>/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>" --limit 5
+    ```
+    *(Note: `recon.py` automatically sorts files alphabetically and ignores any files already located in a `<INBOX>/done/` subfolder).*
 - **Phase 2 — Semantic Decisions**:
   Process EVERY concept in the JSON report:
-  - Concept is new → `create` Spoke (`<TARGET>/<slug>.md`, `AI: true`).
-  - Concept has a collision with new info signal → `enrich` (append to existing note, `AI: false`).
-  - Otherwise → `skip`.
+  * **Delegation Protocol (>20 notes or >15 concepts)**:
+    - The Router spawns a clean, sequential sub-agent.
+    - Instructs the sub-agent to:
+      1. Run `recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>" --limit 5` (or `--limit 10`) to find collisions.
+      2. Read the raw text of only the processed batch files.
+      3. Compare the batch notes against vault notes.
+      4. Return a single, structured JSON decision list mapping:
+         ```json
+         {
+           "concepts": [
+             {
+               "name": "Concept Name",
+               "action": "create | enrich | skip",
+               "path": "target/path/to/note.md",
+               "content": "Clean, summarized markdown content to write or append"
+             }
+           ]
+         }
+         ```
+    - The Router reads the returned JSON list to execute the updates (Phase 3) and runs validation (Phase 4).
+    - If validation passes, the Router moves these processed files to `<INBOX>/done/`.
+    - Router repeats the cycle (spawning the next sub-agent) which automatically picks up the next batch of files.
+  * **Direct Protocol (<= 20 notes)**:
+    - The Router runs `recon.py` with `--limit 5`, directly reads the inbox files, and determines decisions:
+      - Concept is new → `create` Spoke (`<TARGET>/<slug>.md`, `AI: true`).
+      - Concept has a collision with new info signal → `enrich` (append to existing note, `AI: false`).
+      - Otherwise → `skip`.
 - **Phase 3 — Execute**:
   Write/patch directly. For >5 operations, use `bulk_writer.py`:
   ```bash
   python3 <SCRIPTS_DIR>/bulk_writer.py --operations "<PATH_TO_OPS_JSON>"
   ```
-- **Phase 4 — Validate**:
-  Run `linter.py` to check YAML syntax, wikilinks, and 40-line atomicity:
+- **Phase 4 — Validate & Cleanup**:
+  Run `linter.py` to check YAML syntax, wikilinks, and 40-line atomicity.
+  If and ONLY if the validation succeeds, move the successfully processed inbox files to the `done/` subfolder:
   ```bash
   python3 <SCRIPTS_DIR>/linter.py --target "<TARGET>" --hub "<HUB_NAME>"
+  mkdir -p "<INBOX>/done"
+  mv <path_to_processed_inbox_files> "<INBOX>/done/"
   ```
 
 ### 2. Obsidian Curator Workflow

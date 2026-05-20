@@ -101,3 +101,40 @@ collisions = [
 ordered = sorted(collisions, key=collision_priority)
 for c in ordered:
     print(f"  tier={collision_priority(c)[0]}  {c['best_match']:5}  hits={c['total_hits']:2}  {c['name']}")
+
+print("\n=== RUN RECON WITH LIMIT AND DONE FILTERING ===")
+import tempfile
+from pathlib import Path
+from recon import run_recon
+
+with tempfile.TemporaryDirectory() as tmp_dir_str:
+    tmp_dir = Path(tmp_dir_str)
+    inbox = tmp_dir / "inbox"
+    vault = tmp_dir / "vault"
+    inbox.mkdir()
+    vault.mkdir()
+    
+    # Create target notes
+    (inbox / "file_a.md").write_text("## ConceptA\nQuesto è il ConceptA.", encoding='utf-8')
+    (inbox / "file_c.md").write_text("## ConceptC\nQuesto è il ConceptC.", encoding='utf-8')
+    (inbox / "file_b.md").write_text("## ConceptB\nQuesto è il ConceptB.", encoding='utf-8')
+    
+    # Create a note in vault that contains "ConceptA" to cause a collision
+    (vault / "spoke_a.md").write_text("## Spoke A\nQuesto parla del ConceptA.", encoding='utf-8')
+    
+    # Create done subfolder and a file in it
+    done_dir = inbox / "done"
+    done_dir.mkdir()
+    (done_dir / "file_d.md").write_text("## ConceptD\nQuesto è il ConceptD.", encoding='utf-8')
+    
+    # Run with limit=2 (should get file_a and file_b, and skip file_c and file_d due to done/ path check and limit)
+    reports = run_recon(inbox, vault, limit=2)
+    files_processed = [Path(r["file"]).name for r in reports]
+    print(f"  Processed files (expected ['file_a.md', 'file_b.md']): {files_processed}")
+    assert files_processed == ["file_a.md", "file_b.md"], f"Expected ['file_a.md', 'file_b.md'], got {files_processed}"
+    
+    print("\n=== HUMAN RENDER OUTPUT ===")
+    from recon import render_human
+    print(render_human(reports, vault))
+    
+    print("  Limit and done/ filtering test PASSED successfully!")
