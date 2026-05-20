@@ -20,9 +20,9 @@ You orchestrate the obsidian-curator workflow. The reading, extraction, and coll
 
 Do not write your own Python script. Execute the pre-written mechanical recon script using `execute_code`:
 ```bash
-python ~/.hermes/skills/note-taking/obsidian-curator/scripts/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>"
+python3 ~/.hermes/skills/note-taking/obsidian-curator/scripts/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>"
 ```
-This script will mechanically extract candidate concepts (H1/H2, bold text) and check for vault collisions. It outputs an ultra-compact JSON structure grouping items by collision presence: `[{"file": "...", "collisions": [{"name": "...", "hit_count": N, "hits": [{"path": "...", "count": N}]}], "new_concepts": ["Concept 1", "Concept 2"]}]`.
+This script will mechanically extract candidate concepts (H1/H2, bold text) and check for vault collisions. It outputs an ultra-compact, tier-sorted JSON structure where collisions are pre-ordered by priority (Tier 0: title match/enrich; Tier 1: body match, high hits/review; Tier 2: body match, low hits/skip). This allows the Router to consume the concepts in the order they arrive without needing to re-order them, providing a small but real token saving in the Phase 2 prompt.
 
 Do not use LLM calls or subagents for this step. Rely entirely on the output of `recon.py`.
 
@@ -42,8 +42,10 @@ Build a finalized list of write operations for ALL files. Each entry has: `op` (
 
 ### Phase 3 — Execute Writes (Router, internal)
 
-For each operation in the plan, execute `write_file` or `patch` directly using your
-native file editing tools. Do NOT use subagents for this step.
+For each operation in the plan, execute `write_file` or `patch` directly using your native file editing tools. Do NOT use subagents for this step. If there are a large number of operations (>5), run the bulk writer script via `execute_code`:
+```bash
+python3 ~/.hermes/skills/note-taking/obsidian-curator/scripts/bulk_writer.py --operations "<PATH_TO_OPS_JSON>"
+```
 Verify each operation succeeds.
 
 ### Phase 4 — Validate (Router, execute_code)
@@ -65,6 +67,12 @@ Print a final report. If any failures occur, list them — do NOT auto-retry.
 4. **OFM Compliance** — validated by the linter at Phase 4.
 5. **AI Provenance** — set in Phase 2 markdown generation, frozen at write.
 6. **Atomicity** — 40 lines / 1500 chars per Spoke; enforced at Phase 4.
+7. **Factual Density** — Extract and insert as much concrete, factual information from the source inbox files as possible. Avoid generic summaries or losing technical details (such as formulas, formal definitions, architectures, and examples).
+8. **Modular Atomicity** — Generated notes must not be monolithic (e.g., collecting a whole lecture in one file), but atomic and focused on single, specific topics/definitions (Spoke notes), ensuring high modularity.
+9. **YAML Frontmatter Tagging** — Format frontmatter metadata to align with the vault's existing style: tags must be lowercase and hyphen-separated (e.g., `intelligenza-artificiale`, `machine-learning`, `reti-neurali`).
+10. **Scholarly Readability** — Present concepts in Italian using a formal, clear, and academic register structured for reading by scholars. Use bullet points, bold key terms, and Obsidian callout blocks (e.g., `> [!TIP]`) to maximize information usability.
+
+
 
 ## Hard Stops
 

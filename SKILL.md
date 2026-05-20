@@ -5,7 +5,12 @@ description: "Inject Pipeline — ingests source markdown from an inbox into the
 
 # Obsidian Curator — Inject Pipeline
 
-Workflow defined in HERMES.md. This skill is the entrypoint; HERMES.md is the playbook.
+## Curation Standards (Mandato di Curatela)
+The curation process must adhere strictly to these principles:
+- **Factual Density (Massimizzazione Fattuale)**: Extract all concrete details, definitions, schemas, and examples from the source files. Avoid generalizations or hand-wavy summaries.
+- **Modular Atomicity (Atomicità Modulare)**: Avoid monolithic files. Split information into specific, granular concepts (Spoke notes) of roughly ~40 lines to ensure high-resolution modularity.
+- **YAML Frontmatter (Stile Tag YAML)**: Maintain consistent tagging style: lowercase, hyphen-separated tags describing the semantic areas (e.g. `intelligenza-artificiale`, `machine-learning`, `reti-neurali`).
+- **Scholarly Readability (Scrittura Informativa e Fruibile)**: Write in formal Italian, using bold keywords, clear structures, lists, and callout blocks (`> [!TIP]`) to make content highly usable for scholars and researchers.
 
 ## Optimization: Bulk Execution
 Use `execute_code` for all mechanical tasks:
@@ -27,10 +32,28 @@ The Router must have access to the bundled `obsidian` skill. Confirm via:
 
 ## Scripts & References
 
-- `scripts/recon.py` — Phase 1 engine. Run via `execute_code`: `python ~/.hermes/skills/note-taking/obsidian-curator/scripts/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>"`
-- `scripts/linter.py` — Phase 4 validator. Run via `execute_code`: `python ~/.hermes/skills/note-taking/obsidian-curator/scripts/linter.py --target "<TARGET>" --hub "<HUB_NAME>"`
+- `scripts/recon.py` — Phase 1 engine. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-curator/scripts/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>"`
+- `scripts/bulk_writer.py` — Phase 3 bulk writer. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-curator/scripts/bulk_writer.py --operations "<PATH_TO_OPS_JSON>"`
+- `scripts/linter.py` — Phase 4 validator. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-curator/scripts/linter.py --target "<TARGET>" --hub "<HUB_NAME>"`
 - `scripts/templates.py` — markdown templates (template_spoke, patch_snippet).
+
+
+## Ambient Discovery
+
+To discover the directory structure of the `<INBOX>` or `<TARGET>` folders cleanly:
+- **Do not** use `search_files` with `*` or generic patterns without a path scope, as it will return workspace root internals and `.git` repository objects.
+- **Do** list files in the target directory using shell commands:
+  ```bash
+  find "/path/to/dir" -maxdepth 2 -not -path '*/.*' -name '*.md'
+  ```
+- **Do** list files programmatically inside `execute_code` using Python:
+  ```python
+  from pathlib import Path
+  print([str(p) for p in Path("/path/to/dir").glob("**/*.md")])
+  ```
 
 ## Pitfalls
 - **read_file Deduplication**: When using `read_file` inside an `execute_code` loop, if a file was already read in the conversation, the tool returns a dedup message instead of content. For reliable bulk reading in scripts, use `terminal(f"cat {shell_quote(path)}")`.
+- **Semantic Noise**: `recon.py` can produce false positive collisions for generic terms (e.g., 'PIL', 'TABLE', 'ZERO'). See `references/recon-noise.md` for common noise terms and filtering strategies.
 - **Path Quoting**: Vault paths containing spaces or apostrophes (e.g., "Alex's Second Brain") must be handled with `shell_quote` when passed to `terminal()`.
+

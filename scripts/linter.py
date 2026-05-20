@@ -1,5 +1,13 @@
 import os, re, sys, yaml, argparse
 
+# Dynamic Hermes Tools Integration
+try:
+    import hermes_tools
+    HAS_HERMES = True
+except ImportError:
+    HAS_HERMES = False
+
+
 def validate_note(path, hub):
     errors = []
     try:
