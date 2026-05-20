@@ -60,10 +60,27 @@ AI: true
 {body}
 """
 
-def patch_snippet(heading: str, snippet: str, source_basename: str) -> str:
-    return f"""
+def patch_snippet(heading: str, snippet: str, source_basename: str, hub: str = None, existing_content: str = None) -> str:
+    patch_text = f"""
 
 ## Note aggiuntive — {heading} (da {source_basename})
 
 {snippet.strip()}
 """
+    if existing_content is not None:
+        if hub and f"[[{hub}]]" not in existing_content:
+            if existing_content.startswith("---\n"):
+                end_idx = existing_content.find("\n---\n", 4)
+                if end_idx != -1:
+                    if "\nrelated:\n" in existing_content[:end_idx]:
+                        parts = existing_content.split("\nrelated:\n", 1)
+                        existing_content = parts[0] + f"\nrelated:\n  - \"[[{hub}]]\"\n" + parts[1]
+                    else:
+                        existing_content = existing_content[:end_idx] + f"\nrelated:\n  - \"[[{hub}]]\"" + existing_content[end_idx:]
+            else:
+                existing_content = f"Correlati: [[{hub}]]\n\n" + existing_content
+
+        return existing_content.rstrip() + "\n" + patch_text
+    
+    return patch_text
+

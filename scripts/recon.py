@@ -40,6 +40,23 @@ MIN_LEN, MAX_LEN = 3, 50
 TITLE_BONUS = 50
 TOP_K_HITS = 3
 
+# Common Italian stopwords and administrative/slide metadata terms to prevent false positive concept extraction
+STOPWORDS = {
+    # Italian prepositions, articles, conjunctions, pronouns
+    "di", "da", "in", "con", "su", "per", "tra", "fra", "a", "e", "o", "ma", "se", "anche", "come",
+    "il", "lo", "la", "i", "gli", "le", "un", "uno", "una", "del", "dello", "della", "dei", "degli",
+    "delle", "al", "allo", "alla", "ai", "agli", "alle", "dal", "dallo", "dalla", "dagli", "dalle",
+    "nel", "nello", "nella", "nei", "negli", "nelle", "sul", "sullo", "sulla", "sui", "sugli", "sulle",
+    "che", "chi", "cui", "cosa", "quale", "quali", "questo", "questa", "questi", "queste", "quello",
+    "quella", "quelli", "quelle", "mio", "tuo", "suo", "nostro", "vostro", "loro", "dei", "del", "altro",
+    # Common slide metadata / administrative terms
+    "parte", "testo", "esame", "contenuti", "libri", "unipa", "anno", "corso", "appunti",
+    "lezione", "capitolo", "studio", "domande", "risposte", "esercizio", "esercizi", "tema", "temi",
+    "prof", "professore", "docente", "università", "universita", "sito", "web", "link", "online",
+    "slide", "slides", "presentazione", "pagine", "pagina", "riferimenti", "argomenti", "riassunto"
+}
+
+
 # Patterns that, if matched, disqualify a candidate. Tuned against
 # slide-deck-converted markdown (PDF-bullet artifacts, slide section markers,
 # rhetorical-question templates, "ACRONYM: expansion" duplicates).
@@ -76,6 +93,8 @@ def normalize(s: str) -> str:
 
 def is_concept(s: str) -> bool:
     """Apply length, content, and noise-pattern filters."""
+    if s.lower().strip() in STOPWORDS:
+        return False
     if not (MIN_LEN <= len(s) <= MAX_LEN):
         return False
     if not re.search(r'[A-Za-z\u00C0-\u00FF]{3,}', s):

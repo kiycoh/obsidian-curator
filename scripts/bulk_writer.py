@@ -106,6 +106,7 @@ def main():
             heading = op.get("heading")
             snippet = op.get("snippet")
             source_basename = op.get("source_basename")
+            hub = op.get("hub")
 
             if not heading or not snippet or not source_basename:
                 results.append({"index": idx, "path": path, "success": False, "error": "Missing 'heading', 'snippet', or 'source_basename' for patch operation"})
@@ -116,13 +117,13 @@ def main():
                 results.append({"index": idx, "path": path, "success": False, "error": "Cannot patch; target file does not exist"})
                 continue
             
-            patch_text = templates.patch_snippet(
+            new_content = templates.patch_snippet(
                 heading=heading,
                 snippet=snippet,
-                source_basename=source_basename
+                source_basename=source_basename,
+                hub=hub,
+                existing_content=existing_content
             )
-            
-            new_content = existing_content.rstrip() + "\n" + patch_text
             
             ok = write_note(path, new_content)
             if ok:

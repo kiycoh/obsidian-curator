@@ -107,21 +107,32 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
     ```
   * The Sub-Agents fan out via ThreadPoolExecutor. The results return sorted by task index. The Router merges the `{"updates": [...]}` arrays from all subagent outputs into one master operations list, then proceeds to Phase 3.
 
-- **Direct Protocol (Simple / low count / bypass delegation)**:
-  * If the concepts are very few and simple, the Router directly reads the inbox notes, determines decisions, and writes the updates directly without spawning sub-agents.
 - **Phase 3 — Execute**:
-  Write/patch directly. For >5 operations, use `bulk_writer.py`:
-  ```bash
-  python3 <SCRIPTS_DIR>/bulk_writer.py --operations "<PATH_TO_OPS_JSON>"
-  ```
+  Mutate the files in the vault:
+  * **Direct Writing (Low operation count $\le 5$)**: The Router can write/patch the files directly using the native `patch` tool (applying `templates.template_spoke` for new files and `templates.patch_snippet` for patches).
+  * **Bulk Writing (High operation count $> 5$)**: Merge the subagent updates (adding the corresponding `"hub"` and `"source_basename"` keys to each operation) and execute via `bulk_writer.py`:
+    ```bash
+    python3 <SCRIPTS_DIR>/bulk_writer.py --operations "/tmp/operations.json"
+    ```
+
 - **Phase 4 — Validate & Cleanup**:
-  Run `linter.py` to check YAML syntax, wikilinks, and 40-line atomicity.
+  Run `linter.py` to check YAML syntax, wikilinks, and 40-line atomicity for ONLY the modified/created notes (preventing legacy files in `<TARGET>` from poisoning validation):
+  * **If written directly**: Pass the specific absolute file paths directly to `--files`:
+    ```bash
+    python3 <SCRIPTS_DIR>/linter.py --files "/path/to/note1.md" "/path/to/note2.md" --hub "<HUB_NAME>"
+    ```
+  * **If written via bulk_writer**: Pass the operations file directly to `--operations`:
+    ```bash
+    python3 <SCRIPTS_DIR>/linter.py --operations "/tmp/operations.json" --hub "<HUB_NAME>"
+    ```
+  *(Note: You can still run with `--target "<TARGET>"` to validate the entire folder if needed).*
+
   If and ONLY if the validation succeeds, move the successfully processed inbox files to the `done/` subfolder:
   ```bash
-  python3 <SCRIPTS_DIR>/linter.py --target "<TARGET>" --hub "<HUB_NAME>"
   mkdir -p "<INBOX>/done"
   mv <path_to_processed_inbox_files> "<INBOX>/done/"
   ```
+
 
 ### 2. Obsidian Curator Workflow
 Used to either **decouple** a monolithic note into Hub-and-Spoke nodes, or **reformat & enrich** lean, empty, or poorly tagged notes.
@@ -173,7 +184,7 @@ Used to merge duplicate notes of the same name located in different folders acro
 - `recon.py` JSON > 200 concepts → mandatory partition via `distiller_payload.py` `--max-concepts`; never single-shot delegate.
 - Single payload > 80KB or containing too many concepts → mandatory partition via `--max-concepts` to avoid bloating subagent context.
 - Parallel batch > `max_concurrent_children` (default 3) → tool errors out rather than truncating; either shrink the batch or raise the config.
-- Distiller returns updates with `concept_name` values NOT present in the payload → abort batch and re-recon; indicates context-field truncation or model hallucination.
+- Distiller returns updates with `heading` values NOT present in the payload → abort batch and re-recon; indicates context-field truncation or model hallucination.
 - Subagent timeout (`child_timeout_seconds`, default 600s) → check `~/.hermes/logs/subagent-timeout-<session>-<timestamp>.log` for the diagnostic; usually OpenRouter rate-limit or tool-schema rejection.
 - Router context > 60k tokens at any point → stop, report incomplete plan.
 

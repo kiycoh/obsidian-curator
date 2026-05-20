@@ -32,7 +32,7 @@ except ImportError:
 
 # ---- Config ---------------------------------------------------------------
 
-DEFAULT_WINDOW = 600          # Chars on each side of a non-heading concept match.
+DEFAULT_WINDOW = 450          # Chars on each side of a non-heading concept match.
 MAX_EXCERPT_CHARS = 2000      # Hard per-excerpt cap (inbox or vault).
 MAX_OCCURRENCES = 2           # Max non-overlapping windows per concept per file.
 FULL_INCLUDE_THRESHOLD = 6000 # Atomic-note cap from linter.py; include whole note below this.
