@@ -1,10 +1,10 @@
-# Obsidian Curator - Inject Pipeline
+# Obsidian Injector - Inject Pipeline
 
 Ingests source markdown from an inbox into the Obsidian vault via mechanical recon, reasoning in-context, and direct file writing.
 
 ## Quick Start
 
-To use the Obsidian Curator, the Router must have access to the bundled `obsidian` skill. You can confirm this by running:
+To use the Obsidian Injector, the Router must have access to the bundled `obsidian` skill. You can confirm this by running:
 
 ```bash
 skills_list | grep -i obsidian

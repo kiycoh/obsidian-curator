@@ -44,7 +44,7 @@ Since an Obsidian vault is a normal folder on disk, you can inspect note content
 
 For note creation and editing, prefer direct file-writing tools, but use `obsidian-cli` when structural vault operations are needed.
 
-### 1. Direct File Editing (Preferred for Curator)
+### 1. Direct File Editing (Preferred for Injector)
 Write and modify notes directly on the disk using:
 - **`write_to_file`**: Create a new Spoke note.
 - **`replace_file_content`** / **`multi_replace_file_content`**: Patch/enrich existing notes.

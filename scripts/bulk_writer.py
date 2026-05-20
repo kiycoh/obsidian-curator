@@ -52,7 +52,7 @@ def read_note(path):
     return None
 
 def main():
-    parser = argparse.ArgumentParser(description="Bulk note writer and patcher for Hermes obsidian-curator")
+    parser = argparse.ArgumentParser(description="Bulk note writer and patcher for Hermes obsidian-injector")
     parser.add_argument("--operations", required=True, help="Path to JSON file containing operations")
     args = parser.parse_args()
 

@@ -1,9 +1,9 @@
 ---
-name: obsidian-curator
+name: obsidian-injector
 description: "Inject Pipeline — ingests source markdown from an inbox into the Obsidian vault. Performs mechanical recon via execute_code, reasoning in-context, and file writes directly from the Router."
 ---
 
-# Obsidian Curator — Inject Pipeline
+# Obsidian Injector — Inject Pipeline
 
 ## Curation Standards (Mandato di Curatela)
 The curation process must adhere strictly to these principles:
@@ -32,9 +32,9 @@ The Router must have access to the bundled `obsidian` skill. Confirm via:
 
 ## Scripts & References
 
-- `scripts/recon.py` — Phase 1 engine. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-curator/scripts/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>"`
-- `scripts/bulk_writer.py` — Phase 3 bulk writer. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-curator/scripts/bulk_writer.py --operations "<PATH_TO_OPS_JSON>"`
-- `scripts/linter.py` — Phase 4 validator. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-curator/scripts/linter.py --target "<TARGET>" --hub "<HUB_NAME>"`
+- `scripts/recon.py` — Phase 1 engine. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>"`
+- `scripts/bulk_writer.py` — Phase 3 bulk writer. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/bulk_writer.py --operations "<PATH_TO_OPS_JSON>"`
+- `scripts/linter.py` — Phase 4 validator. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/linter.py --target "<TARGET>" --hub "<HUB_NAME>"`
 - `scripts/templates.py` — markdown templates (template_spoke, patch_snippet).
 
 

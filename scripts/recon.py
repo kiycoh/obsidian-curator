@@ -1,4 +1,4 @@
-"""Mechanical recon for the Hermes obsidian-curator pipeline.
+"""Mechanical recon for the Hermes obsidian-injector pipeline.
 
 Reads inbox markdown, extracts candidate concepts via heuristics, checks for
 collisions against the vault, emits a compact JSON report for the Router's
@@ -235,7 +235,7 @@ def render_human(reports: list, vault_root: Path) -> str:
 # ---- CLI ------------------------------------------------------------------
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Mechanical recon for Hermes obsidian-curator")
+    parser = argparse.ArgumentParser(description="Mechanical recon for Hermes obsidian-injector")
     parser.add_argument("--inbox", required=True, type=Path)
     parser.add_argument("--vault", required=True, type=Path)
     parser.add_argument("--format", choices=["json", "human"], default="json",

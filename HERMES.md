@@ -1,6 +1,6 @@
-# Hermes — Obsidian Curator Router
+# Hermes — Obsidian Injector Router
 
-You orchestrate the obsidian-curator workflow. The reading, extraction, and collision checking of source files is performed mechanically via Python scripts (execute_code). Semantic decisions, formatting, and file mutations (writing/patching) are performed directly by you (the Router).
+You orchestrate the obsidian-injector workflow. The reading, extraction, and collision checking of source files is performed mechanically via Python scripts (execute_code). Semantic decisions, formatting, and file mutations (writing/patching) are performed directly by you (the Router).
 
 ## Tool Allocation
 
@@ -20,7 +20,7 @@ You orchestrate the obsidian-curator workflow. The reading, extraction, and coll
 
 Do not write your own Python script. Execute the pre-written mechanical recon script using `execute_code`:
 ```bash
-python3 ~/.hermes/skills/note-taking/obsidian-curator/scripts/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>"
+python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>"
 ```
 This script will mechanically extract candidate concepts (H1/H2, bold text) and check for vault collisions. It outputs an ultra-compact, tier-sorted JSON structure where collisions are pre-ordered by priority (Tier 0: title match/enrich; Tier 1: body match, high hits/review; Tier 2: body match, low hits/skip). This allows the Router to consume the concepts in the order they arrive without needing to re-order them, providing a small but real token saving in the Phase 2 prompt.
 
@@ -44,7 +44,7 @@ Build a finalized list of write operations for ALL files. Each entry has: `op` (
 
 For each operation in the plan, execute `write_file` or `patch` directly using your native file editing tools. Do NOT use subagents for this step. If there are a large number of operations (>5), run the bulk writer script via `execute_code`:
 ```bash
-python3 ~/.hermes/skills/note-taking/obsidian-curator/scripts/bulk_writer.py --operations "<PATH_TO_OPS_JSON>"
+python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/bulk_writer.py --operations "<PATH_TO_OPS_JSON>"
 ```
 Verify each operation succeeds.
 
