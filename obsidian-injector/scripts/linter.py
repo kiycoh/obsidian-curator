@@ -8,7 +8,7 @@ except ImportError:
     HAS_HERMES = False
 
 
-def validate_note(path, hub):
+def validate_note(path, hub, op_type=None):
     errors = []
     try:
         with open(path, 'r', encoding='utf-8') as f:
@@ -28,12 +28,13 @@ def validate_note(path, hub):
         if f"[[{hub}]]" not in content:
             errors.append(f"Missing wikilink to [[{hub}]]")
             
-        # 3. Atomicity (approx 40 lines / 1500 chars)
-        lines = content.splitlines()
-        if len(lines) > 60:
-            errors.append(f"Note too long ({len(lines)} lines)")
-        if len(content) > 6000:
-            errors.append(f"Note too large ({len(content)} chars)")
+        # 3. Atomicity (approx 40 lines / 1500 chars) - Skip for patch operations
+        if op_type != "patch":
+            lines = content.splitlines()
+            if len(lines) > 60:
+                errors.append(f"Note too long ({len(lines)} lines)")
+            if len(content) > 6000:
+                errors.append(f"Note too large ({len(content)} chars)")
             
     except Exception as e:
         errors.append(f"Read error: {e}")
@@ -56,9 +57,10 @@ if __name__ == "__main__":
             print("Error: Either --target, --operations, or --files must be specified.")
         sys.exit(1)
 
-    files_to_check = []
+    files_to_check = [] # List of tuples: (path, op_type)
     if args.files:
-        files_to_check.extend(args.files)
+        for f in args.files:
+            files_to_check.append((f, None))
     elif args.operations:
         if not os.path.exists(args.operations):
             if args.format == "json":
@@ -73,7 +75,7 @@ if __name__ == "__main__":
                 path = op.get("path")
                 # Only check files that were written or patched
                 if path and op.get("op") in ("write", "patch") and path.endswith('.md'):
-                    files_to_check.append(path)
+                    files_to_check.append((path, op.get("op")))
         except Exception as e:
             if args.format == "json":
                 print(json.dumps({"error": f"Failed to parse operations JSON: {e}"}))
@@ -89,13 +91,13 @@ if __name__ == "__main__":
             sys.exit(1)
         for f in os.listdir(args.target):
             if f.endswith('.md'):
-                files_to_check.append(os.path.join(args.target, f))
+                files_to_check.append((os.path.join(args.target, f), None))
 
 
     results = {}
-    for path in files_to_check:
+    for path, op_type in files_to_check:
         if os.path.exists(path):
-            errs = validate_note(path, args.hub)
+            errs = validate_note(path, args.hub, op_type)
             if errs:
                 results[os.path.basename(path)] = errs
         else:
@@ -114,7 +116,8 @@ if __name__ == "__main__":
             print("All files validated successfully.")
         else:
             print(f"Validation failed for {len(results)} files:")
-            for f, errs in results.items():
-                print(f"- {f}: {', '.join(errs)}")
+            for fname, errs in results.items():
+                print(f"  - {fname}:")
+                for err in errs:
+                    print(f"    * {err}")
             sys.exit(1)
-

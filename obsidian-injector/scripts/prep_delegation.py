@@ -23,8 +23,8 @@ Then in the Router's reasoning:
     2. Invoke the top-level delegate_task tool directly (not via python code/execute_code) with the tasks array.
 """
 import argparse
+import hashlib
 import json
-import re
 import sys
 from pathlib import Path
 
@@ -153,8 +153,15 @@ def main():
     )
 
     rendered = json.dumps(tasks, ensure_ascii=False, indent=2)
+    checksum = hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+
     if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(rendered, encoding="utf-8")
+        checksum_path = args.out.with_suffix(".checksum")
+        checksum_path.parent.mkdir(parents=True, exist_ok=True)
+        checksum_path.write_text(checksum, encoding="utf-8")
+        sys.stderr.write(f"[PREP-DELEGATION] Wrote checksum to: {checksum_path.resolve()}\n")
     else:
         print(rendered)
 

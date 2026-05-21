@@ -43,12 +43,11 @@ You can dynamically choose which workflow to activate based on the target files 
 Used to ingest external source notes from an `<INBOX>` folder into a designated `<TARGET>` folder under `<HUB_NAME>`.
 
 - **Phase 1 — Mechanical Recon & Micro-Batching**:
-  * By default, the Router **must** run reconnaissance over the entire `<INBOX>`,
-    explicitly separating stdout (the JSON report) from stderr (any diagnostics):
+  * By default, the Router **must** run reconnaissance over the entire `<INBOX>` using `recon.py`:
     
     ```bash
-    python3 /recon.py --inbox "" --vault "" \
-        > /tmp/recon.json 2>/tmp/recon.stderr
+    python3 <SCRIPTS_DIR>/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>" \
+        > /tmp/recon.json
     ```
 
   * **Large Inbox / Truncation Fallback**: Only if the recon output is truncated (e.g. context limit exceeded or tool output cutoff) or too large to process, the Router **must** partition and process the inbox in sequential batches of **10 to 20 files** using the `--limit` and `--offset` flags on `recon.py` directly:
@@ -87,6 +86,20 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
     tasks_data = json.loads(read_file("/tmp/delegation_args.json"))
     delegate_task(tasks=tasks_data)
     ```
+  * Once the subagent returns, the Router sanitizes the raw output file:
+    ```bash
+    python3 <SCRIPTS_DIR>/parse_distiller_output.py \
+        --in /tmp/distiller_output_0.txt \
+        --out /tmp/distiller_output_0.json
+    ```
+  * The Router then runs the operations validator:
+    ```bash
+    python3 <SCRIPTS_DIR>/validate_operations.py \
+        --operations /tmp/distiller_output_0.json \
+        --payload /tmp/distiller_payload.json \
+        --target "<TARGET>" \
+        --out /tmp/operations.validated.json
+    ```
 
 - **Phase 2.1b — Parallel batch fan-out (Router → prep_delegation.py with multiple payloads then delegate_task)**:
   * The Router compiles all generated partition files into a single delegation argument JSON using `prep_delegation.py`:
@@ -105,26 +118,36 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
     tasks_data = json.loads(read_file("/tmp/delegation_args.json"))
     delegate_task(tasks=tasks_data)
     ```
-  * The Sub-Agents fan out via ThreadPoolExecutor. The results return sorted by task index. The Router merges the `{"updates": [...]}` arrays from all subagent outputs into one master operations list, then proceeds to Phase 3.
+  * The Sub-Agents fan out via ThreadPoolExecutor. The Router sanitizes each batch's raw output file (e.g. `parse_distiller_output.py --in /tmp/distiller_output_i.txt --out /tmp/distiller_output_i.json`).
+  * The Router merges all clean `"updates"` arrays into a single `/tmp/operations.json` file.
+  * The Router then runs the validation script across the merged list of operations:
+    ```bash
+    python3 <SCRIPTS_DIR>/validate_operations.py \
+        --operations /tmp/operations.json \
+        --payload /tmp/distiller_payload_0.json \
+        --payload /tmp/distiller_payload_1.json \
+        --payload /tmp/distiller_payload_2.json \
+        --target "<TARGET>" \
+        --out /tmp/operations.validated.json
+    ```
+
+- **Phase 2.2 — Handle Rejection & Validation Check**:
+  * **Validator exit code 2 ($\ge 10\%$ rejection):** The Router does NOT proceed to Phase 3. It must either:
+    - **(a)** Inspect `operations.rejected.json`; if rejections cluster on a single batch (e.g. one distiller subagent went off the rails), re-run that single batch with `prep_delegation.py` + a stronger model.
+    - **(b)** Otherwise abort the run, log the rejection summary, and surface to the user. Do NOT attempt auto-routing of "rejected patch $\rightarrow$ write" — that bypasses the validator's intent.
+  * **Validator exit code 0 ($< 10\%$ rejection):** Proceed to Phase 3 with the successfully validated operations list `/tmp/operations.validated.json`.
 
 - **Phase 3 — Execute**:
-  Mutate the files in the vault:
-  * **Direct Writing (Low operation count $\le 5$)**: The Router can write/patch the files directly using the native `patch` tool (applying `templates.template_spoke` for new files and `templates.patch_snippet` for patches).
-  * **Bulk Writing (High operation count $> 5$)**: Merge the subagent updates (adding the corresponding `"hub"` and `"source_basename"` keys to each operation) and execute via `bulk_writer.py`:
-    ```bash
-    python3 <SCRIPTS_DIR>/bulk_writer.py --operations "/tmp/operations.json"
-    ```
+  Mutate the files in the vault. We always write programmatically via the bulk writer to ensure consistent templating and validation:
+  ```bash
+  python3 <SCRIPTS_DIR>/bulk_writer.py --operations "/tmp/operations.validated.json"
+  ```
 
 - **Phase 4 — Validate & Cleanup**:
-  Run `linter.py` to check YAML syntax, wikilinks, and 40-line atomicity for ONLY the modified/created notes (preventing legacy files in `<TARGET>` from poisoning validation):
-  * **If written directly**: Pass the specific absolute file paths directly to `--files`:
-    ```bash
-    python3 <SCRIPTS_DIR>/linter.py --files "/path/to/note1.md" "/path/to/note2.md" --hub "<HUB_NAME>"
-    ```
-  * **If written via bulk_writer**: Pass the operations file directly to `--operations`:
-    ```bash
-    python3 <SCRIPTS_DIR>/linter.py --operations "/tmp/operations.json" --hub "<HUB_NAME>"
-    ```
+  Run `linter.py` to check YAML syntax, wikilinks, and 40-line atomicity for ONLY the modified/created notes:
+  ```bash
+  python3 <SCRIPTS_DIR>/linter.py --operations "/tmp/operations.validated.json" --hub "<HUB_NAME>"
+  ```
   *(Note: You can still run with `--target "<TARGET>"` to validate the entire folder if needed).*
 
   If and ONLY if the validation succeeds, move the successfully processed inbox files to the `done/` subfolder:
@@ -183,10 +206,13 @@ Used to merge duplicate notes of the same name located in different folders acro
 ## Hard Stops
 - `recon.py` JSON > 200 concepts → mandatory partition via `distiller_payload.py` `--max-concepts`; never single-shot delegate.
 - Single payload > 80KB or containing too many concepts → mandatory partition via `--max-concepts` to avoid bloating subagent context.
-- Parallel batch > `max_concurrent_children` (default 3) → tool errors out rather than truncating; either shrink the batch or raise the config.
+- Parallel batch > `max_concurrent_children` (default 30) → tool errors out rather than truncating; either shrink the batch or raise the config.
+- Validator exits with code 2 ($\ge 10\%$ operations rejected) $\rightarrow$ abort batch immediately. Re-recon or upgrade the subagent model.
 - Distiller returns updates with `heading` values NOT present in the payload → abort batch and re-recon; indicates context-field truncation or model hallucination.
 - Subagent timeout (`child_timeout_seconds`, default 600s) → check `~/.hermes/logs/subagent-timeout-<session>-<timestamp>.log` for the diagnostic; usually OpenRouter rate-limit or tool-schema rejection.
 - Router context > 60k tokens at any point → stop, report incomplete plan.
 
 ## Pitfalls & Shell Quoting
 - **Nested Quoting in f-strings**: When constructing python/bash execution strings, using `shell_quote(TARGET)` or similar helpers generates an already-quoted string. Do **NOT** wrap the `{shell_quote(...)}` block in extra single or double quotes (e.g. `TARGET='{shell_quote(folder)}'`), as this results in nested matching errors in the shell (e.g. `eval: unexpected EOF while looking for matching ...`). Use it as: `--substitute TARGET={shell_quote(folder)}`.
+- **recon.py stderr behaviour**: In JSON mode, `recon.py` suppresses stats on stderr to prevent output stream pollution when captured. Do NOT redirect stderr to a file (like `2>/tmp/recon.stderr`) in JSON mode as it creates a confusing empty file.
+- **hermes_tools.read_file line format**: `hermes_tools.read_file` returns file content prefixed with line numbers (`LINE|CONTENT`). To load subagent JSON files via Python or command-line, strip line numbers before `json.loads` or use shell commands like `terminal(f"cat {shell_quote(path)}")` instead.

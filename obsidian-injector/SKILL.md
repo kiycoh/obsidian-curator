@@ -17,8 +17,8 @@ The curation process must adhere strictly to these principles:
 Use `execute_code` for all mechanical tasks:
 - **Phase 1**: Execute `scripts/recon.py` to iterate inbox and search vault.
 - **Phase 2.0**: Execute `scripts/distiller_payload.py` to pre-distill the payload context json.
-- **Phase 3**: Execute mutations directly using the native `patch` tool (for $\le 5$ files) or programmatically via `scripts/bulk_writer.py` (for $> 5$ files).
-- **Phase 4**: Static linting of modified files using `scripts/linter.py` (targeting specific files via `--files` or operations via `--operations`).
+- **Phase 3**: Execute mutations programmatically via `scripts/bulk_writer.py` using the validated operations JSON.
+- **Phase 4**: Static linting of modified files using `scripts/linter.py` (targeting operations via `--operations`).
 
 ## Inputs
 
@@ -57,7 +57,11 @@ To discover the directory structure of the `<INBOX>` or `<TARGET>` folders clean
 
 ## Pitfalls
 - **read_file Deduplication**: When using `read_file` inside an `execute_code` loop, if a file was already read in the conversation, the tool returns a dedup message instead of content. For reliable bulk reading in scripts, use `terminal(f"cat {shell_quote(path)}")`.
+- **hermes_tools.read_file Output Format**: `hermes_tools.read_file` returns file content as `"LINE|CONTENT"` per line. When loading JSON written by a subagent or Router via python, strip these line numbers (e.g., `"\n".join(l.split("|", 1)[1] for l in raw.split("\n") if "|" in l)`) before calling `json.loads()`, or use `terminal(f"cat {shell_quote(path)}")` instead.
 - **Semantic Noise**: `recon.py` can produce false positive collisions for generic terms (e.g., 'PIL', 'TABLE', 'ZERO'). Refer to the `NOISE_PATTERNS` filter inside `recon.py` for common noise terms and filtering strategies.
 - **Path Quoting**: Vault paths containing spaces or apostrophes (e.g., "Alex's Second Brain") must be handled with `shell_quote` when passed to `terminal()`. Do **NOT** wrap the `{shell_quote(...)}` block in extra single or double quotes (e.g. `TARGET='{shell_quote(folder)}'`), as this results in nested matching errors in the shell.
 - **distiller_payload.py Output**: The script writes JSON directly to the `--out` file path. It does NOT write to stdout — stdout only carries the stats line (e.g. `[DISTILLER-PAYLOAD] 12 inbox files, 220 concepts ...`). When running via `execute_code` with `subprocess.run(capture_output=True)`, do NOT assign the payload to `result.stdout` — read the `--out` file afterward instead.
+- **prep_delegation.py Substitutions**: The `--substitute` flag only supports specific keys (e.g., `TARGET`). Attempting to pass unsupported keys like `HUB_NAME` will cause the script to crash with an unrecognized arguments error.
+- **bulk_writer.py Requirements**: For `write` operations, the operations JSON **must** include both `heading` and `hub` keys. The Router is responsible for ensuring these are populated (e.g., deriving `heading` from the filename and using the provided `<HUB_NAME>`) before executing the bulk write.
+- **Patch-to-Write Fallback**: If `bulk_writer.py` reports a failure for a `patch` operation because the target file does not exist, the Router should convert that operation to a `write` (and ensure `heading`/`hub` are present) and retry.
 

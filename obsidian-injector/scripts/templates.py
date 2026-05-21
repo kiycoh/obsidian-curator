@@ -78,7 +78,16 @@ def patch_snippet(heading: str, snippet: str, source_basename: str, hub: str = N
                     else:
                         existing_content = existing_content[:end_idx] + f"\nrelated:\n  - \"[[{hub}]]\"" + existing_content[end_idx:]
             else:
-                existing_content = f"Correlati: [[{hub}]]\n\n" + existing_content
+                today = datetime.date.today().strftime("%Y, %m, %d")
+                frontmatter = f"""---
+parent note: "[[{hub}]]"
+related:
+  - "[[{hub}]]"
+last modified: {today}
+AI: true
+---
+"""
+                existing_content = frontmatter + existing_content
 
         return existing_content.rstrip() + "\n" + patch_text
     

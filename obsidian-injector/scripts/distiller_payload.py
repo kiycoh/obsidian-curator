@@ -224,18 +224,27 @@ def build_payload(recon_reports: list, window: int) -> dict:
 def partition_by_concepts(payload: dict, max_concepts: int) -> list:
     """Greedy bin-pack the payload's batches into chunks of ≤max_concepts.
 
-    Files are atomic: a single file's concepts stay together in one chunk,
-    even if that file alone exceeds max_concepts. This preserves the
-    Modular Atomicity decision context for the Distiller (it sees all
-    concepts from one inbox file in one place).
+    If a single batch contains more than max_concepts, we split it into
+    sub-batches with the same inbox_file but sliced concepts to keep
+    each chunk ≤ max_concepts.
     """
+    split_batches = []
+    for batch in payload["batches"]:
+        concepts = batch["concepts"]
+        if len(concepts) <= max_concepts:
+            split_batches.append(batch)
+        else:
+            for i in range(0, len(concepts), max_concepts):
+                split_batches.append({
+                    "inbox_file": batch["inbox_file"],
+                    "concepts": concepts[i:i + max_concepts]
+                })
+
     chunks = []
     current = []
     current_count = 0
-    for batch in payload["batches"]:
+    for batch in split_batches:
         batch_count = len(batch["concepts"])
-        # Flush the current chunk if adding this batch would overflow,
-        # unless current is empty (then we accept the overflow for this single batch).
         if current and (current_count + batch_count > max_concepts):
             chunks.append(current)
             current = []
@@ -314,6 +323,7 @@ def main():
         for i, chunk in enumerate(chunks):
             out_path = out_path_for_partition(args.out, i)
             rendered = json.dumps(chunk, ensure_ascii=False, indent=2)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_text(rendered, encoding="utf-8")
             sys.stderr.write(payload_stats(chunk, len(rendered)).replace(
                 "[DISTILLER-PAYLOAD]", f"[DISTILLER-PAYLOAD batch {i}]") + f" → {out_path}\n")
@@ -327,6 +337,7 @@ def main():
     # Single-output mode (unchanged).
     rendered = json.dumps(payload, ensure_ascii=False, indent=2)
     if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(rendered, encoding="utf-8")
     else:
         print(rendered)

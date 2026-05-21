@@ -1,0 +1,6 @@
+{
+  "source_path": "/path/to/source/file.md",
+  "status": "match | enrich | new",
+  "canonical_path": null,
+  "reason": "Brevi spiegazione in italiano del perché questo file rientra in questa categoria"
+}
