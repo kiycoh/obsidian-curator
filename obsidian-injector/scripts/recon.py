@@ -141,9 +141,57 @@ def iter_vault_md(vault_dir: Path):
             if f.endswith('.md'):
                 yield Path(root) / f
 
+def compile_concept_regex(c: str) -> re.Pattern:
+    """Compile a regex pattern for a concept ensuring word boundary matching.
+
+    If a concept starts or ends with non-alphanumeric characters, the standard \b
+    boundary check is skipped for that edge to prevent regex match failures on
+    concepts containing special characters (e.g. parentheses or punctuation).
+    """
+    escaped = re.escape(c)
+    start_b = r'\b' if c and re.match(r'\w', c) else ''
+    end_b = r'\b' if c and re.search(r'\w$', c) else ''
+    return re.compile(rf'{start_b}{escaped}{end_b}', re.IGNORECASE)
+
+
+def is_title_match(c: str, stem: str) -> bool:
+    """Determine if a concept matches a note's stem (title) in a robust way.
+
+    Checks:
+    1. Exact case-insensitive match.
+    2. Concept inside stem using safe boundary regex.
+    3. Stem inside concept using safe boundary regex.
+    4. Word-set overlap (if one set of words is a subset of the other),
+       which handles swapped word orders and parenthesized annotations.
+    """
+    c_lower = c.lower()
+    stem_lower = stem.lower()
+    if c_lower == stem_lower:
+        return True
+
+    # Check if concept is in the stem using the safe boundary regex
+    pat_c = compile_concept_regex(c)
+    if pat_c.search(stem):
+        return True
+
+    # Check if stem is in the concept using the safe boundary regex
+    pat_s = compile_concept_regex(stem)
+    if pat_s.search(c):
+        return True
+
+    # Word-set overlap fallback: check if one is a subset of the other
+    c_words = set(re.findall(r'\w+', c_lower))
+    s_words = set(re.findall(r'\w+', stem_lower))
+    if c_words and s_words:
+        if c_words.issubset(s_words) or s_words.issubset(c_words):
+            return True
+
+    return False
+
+
 def search_vault(concepts: set, vault_dir: Path) -> dict:
     """Map concept -> [(path, body_count, in_title)]."""
-    patterns = {c: re.compile(rf'\b{re.escape(c)}\b', re.IGNORECASE) for c in concepts}
+    patterns = {c: compile_concept_regex(c) for c in concepts}
     hits: dict[str, list] = {c: [] for c in concepts}
     for p in iter_vault_md(vault_dir):
         try:
@@ -154,7 +202,7 @@ def search_vault(concepts: set, vault_dir: Path) -> dict:
             count = len(pat.findall(content))
             if count == 0:
                 continue
-            in_title = bool(re.search(rf'\b{re.escape(c)}\b', p.stem, re.IGNORECASE))
+            in_title = is_title_match(c, p.stem)
             hits[c].append((str(p), count, in_title))
     return hits
 

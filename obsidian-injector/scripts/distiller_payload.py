@@ -107,10 +107,26 @@ def classify_action(collision: dict, in_new_concepts: bool) -> str:
 
 # ---- Heading-aware section extraction -------------------------------------
 
+def compile_concept_regex(c: str) -> re.Pattern:
+    """Compile a regex pattern for a concept ensuring word boundary matching.
+
+    If a concept starts or ends with non-alphanumeric characters, the standard \b
+    boundary check is skipped for that edge to prevent regex match failures on
+    concepts containing special characters (e.g. parentheses or punctuation).
+    """
+    escaped = re.escape(c)
+    start_b = r'\b' if c and re.match(r'\w', c) else ''
+    end_b = r'\b' if c and re.search(r'\w$', c) else ''
+    return re.compile(rf'{start_b}{escaped}{end_b}', re.IGNORECASE)
+
+
 def find_heading(content: str, concept: str):
     """Return the first ATX heading line (H1–H4) containing the concept, or None."""
+    escaped = re.escape(concept)
+    start_b = r'\b' if concept and re.match(r'\w', concept) else ''
+    end_b = r'\b' if concept and re.search(r'\w$', concept) else ''
     pattern = re.compile(
-        rf'^(#{{1,4}})\s+.*\b{re.escape(concept)}\b.*$',
+        rf'^(#{{1,4}})\s+.*{start_b}{escaped}{end_b}.*$',
         re.IGNORECASE | re.MULTILINE,
     )
     return pattern.search(content)
@@ -128,18 +144,58 @@ def extract_section(content: str, heading_match) -> str:
 
 # ---- Window fallback ------------------------------------------------------
 
+def expand_to_double_newline(content: str, start: int, end: int) -> tuple[int, int]:
+    """Expand start and end indices to nearest double newline boundaries.
+
+    Prevents truncating paragraphs, lists, code blocks, or LaTeX equations in markdown.
+    """
+    new_start = content.rfind('\n\n', 0, start)
+    if new_start == -1:
+        new_start = 0
+    else:
+        new_start += 2  # Skip past the double newline
+    new_end = content.find('\n\n', end)
+    if new_end == -1:
+        new_end = len(content)
+    return new_start, new_end
+
+
+def safe_truncate(text: str, max_chars: int) -> str:
+    """Truncate text to max_chars without cutting through blocks or lines if possible.
+
+    Tries to find a double newline boundary or a single newline boundary in the latter
+    half of the text before resorting to a hard character limit truncation.
+    """
+    if len(text) <= max_chars:
+        return text
+    truncated_idx = text.rfind('\n\n', 0, max_chars)
+    if truncated_idx != -1 and truncated_idx > max_chars // 2:
+        return text[:truncated_idx].strip()
+    truncated_idx = text.rfind('\n', 0, max_chars)
+    if truncated_idx != -1 and truncated_idx > max_chars // 2:
+        return text[:truncated_idx].strip()
+    return text[:max_chars].strip()
+
+
 def extract_windows(content: str, concept: str, window: int, max_occ: int) -> list:
-    """Grab non-overlapping ±window char snippets around concept occurrences."""
-    pattern = re.compile(rf'\b{re.escape(concept)}\b', re.IGNORECASE)
+    """Grab non-overlapping snippets around concept occurrences aligned to double newline boundaries."""
+    pattern = compile_concept_regex(concept)
     windows = []
     last_end = -1
     for m in pattern.finditer(content):
         if len(windows) >= max_occ:
             break
+        
+        # Initial character-based window
         start = max(0, m.start() - window)
+        end = min(len(content), m.end() + window)
+        
+        # Expand boundaries to double newlines to avoid truncation
+        start, end = expand_to_double_newline(content, start, end)
+        
         if start < last_end:
             continue
-        end = min(len(content), m.end() + window)
+            
         windows.append(content[start:end].strip())
         last_end = end
     return windows
@@ -154,11 +210,11 @@ def extract_excerpt(file_path: Path, concept: str, window: int) -> str:
         return ""
     heading = find_heading(content, concept)
     if heading:
-        return extract_section(content, heading)[:MAX_EXCERPT_CHARS]
+        return safe_truncate(extract_section(content, heading), MAX_EXCERPT_CHARS)
     windows = extract_windows(content, concept, window, MAX_OCCURRENCES)
     if not windows:
         return ""
-    return "\n\n[...]\n\n".join(windows)[:MAX_EXCERPT_CHARS]
+    return safe_truncate("\n\n[...]\n\n".join(windows), MAX_EXCERPT_CHARS)
 
 
 def vault_content_or_excerpt(vault_path: Path, concept: str, window: int, is_title_match: bool) -> str:

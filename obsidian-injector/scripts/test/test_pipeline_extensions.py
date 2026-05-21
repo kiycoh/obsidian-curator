@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import parse_distiller_output
 import validate_operations
 import templates
+import distiller_payload
 
 
 class TestParseDistillerOutput(unittest.TestCase):
@@ -264,6 +265,28 @@ class TestValidateOperations(unittest.TestCase):
         self.assertEqual(len(validated), 0)
         self.assertEqual(len(rejected), 1)
         self.assertIn("contains or points to a forbidden inbox directory segment", rejected[0]["reason"])
+
+
+class TestDistillerPayload(unittest.TestCase):
+    def test_expand_to_double_newline(self):
+        content = "Para 1.\n\nPara 2 (concept match).\n\nPara 3."
+        # Match starts at index 9 ('Para 2') and ends at 32
+        start, end = 9, 32
+        ns, ne = distiller_payload.expand_to_double_newline(content, start, end)
+        self.assertEqual(ns, 9)
+        self.assertEqual(ne, 32)
+        self.assertEqual(content[ns:ne], "Para 2 (concept match).")
+
+    def test_safe_truncate(self):
+        text = "This is a paragraph.\n\nThis is a code block:\n```python\nprint(1)\n```\n\nFinal block."
+        # Truncating with limit that lands around code block end (char index ~65)
+        truncated = distiller_payload.safe_truncate(text, 68)
+        self.assertTrue(truncated.endswith("```"))
+        self.assertNotIn("Final block.", truncated)
+        
+        # Fallback to hard limit if max_chars is extremely short
+        short_truncated = distiller_payload.safe_truncate(text, 10)
+        self.assertEqual(short_truncated, "This is a")
 
 
 if __name__ == "__main__":

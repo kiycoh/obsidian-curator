@@ -138,3 +138,44 @@ with tempfile.TemporaryDirectory() as tmp_dir_str:
     print(render_human(reports, vault))
     
     print("  Limit and done/ filtering test PASSED successfully!")
+
+print("\n=== ROBUST TITLE MATCHING AND WORD BOUNDARY TESTS ===")
+from recon import is_title_match, compile_concept_regex
+
+# Test cases for is_title_match
+test_cases = [
+    # (concept, stem, expected_match)
+    ("Sottoreti", "Subnetting (Sottoreti)", True),
+    ("Sottoreti", "Subnetting(Sottoreti)", True),
+    ("Sottoreti (Subnetting)", "Sottoreti (Subnetting)", True),
+    ("Sottoreti (Subnetting)", "Subnetting (Sottoreti)", True),
+    ("Sottoreti (Subnetting)", "Sottoreti", True),
+    ("Sicurezza di rete", "Sicurezza", True),
+    ("Sicurezza", "Sicurezza di rete", True),
+    ("Reti", "Sottoreti", False),
+    ("Sottorete", "Sottoreti", False),
+]
+
+for c, stem, expected in test_cases:
+    res = is_title_match(c, stem)
+    print(f"  Concept: {c!r:25} | Stem: {stem!r:25} | Match: {res!s:5} (Expected: {expected!s:5})")
+    assert res == expected, f"Failed for Concept: {c!r}, Stem: {stem!r}. Got {res}, expected {expected}"
+
+# Test cases for compile_concept_regex with non-word character boundary edges
+regex_test_cases = [
+    # (concept, text, expected_match)
+    ("Sottoreti (Subnetting)", "Questo parla di Sottoreti (Subnetting).", True),
+    ("Sottoreti (Subnetting)", "Sottoreti (Subnetting) è importante.", True),
+    (".NET", "Programmazione in .NET", True),
+    (".NET", "Questo è un .NETwork", False),
+    ("C++", "Linguaggio C++", True),
+    ("C++", "ABC++", False),
+]
+
+for c, text, expected in regex_test_cases:
+    pat = compile_concept_regex(c)
+    res = bool(pat.search(text))
+    print(f"  Concept: {c!r:25} | Text: {text!r:45} | Match: {res!s:5} (Expected: {expected!s:5})")
+    assert res == expected, f"Regex failed for Concept: {c!r}, Text: {text!r}. Got {res}, expected {expected}"
+
+print("  Robust matching tests PASSED successfully!")
