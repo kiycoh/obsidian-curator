@@ -1,11 +1,11 @@
 ---
-name: obsidian-merger
-description: "Merge & Unification Pipeline — identifies duplicate notes of the same name located in different folders across the vault, and merges their contents smoothly into a single canonical note without losing technical density."
+name: obsidian-dedup
+description: "Deduplication & Unification Pipeline — identifies duplicate notes of the same name located in different folders across the vault, and merges their contents smoothly into a single canonical note without losing technical density."
 ---
 
-# Obsidian Merger — Merge Pipeline
+# Obsidian Dedup — Deduplication Pipeline
 
-The Merge pipeline is used to find and resolve duplicate note files within the vault. In Obsidian, while you cannot have files with the exact same name in the same directory, you can have duplicates in different folders (e.g. `1.1 Informazione/MLP.md` and `1.2 Calcolo/MLP.md`).
+The Deduplication pipeline is used to find and resolve duplicate note files within the vault. In Obsidian, while you cannot have files with the exact same name in the same directory, you can have duplicates in different folders (e.g. `1.1 Informazione/MLP.md` and `1.2 Calcolo/MLP.md`).
 
 ## Inputs
 
@@ -19,12 +19,12 @@ This skill requires:
 - **`web_search` & `web_extract`** (native tools or programmatically imported via `hermes_tools`) to verify facts, definitions, or correct formulas.
 - **`write_file` & `patch`** (native file operation tools) to commit updates to the vault.
 
-## Merge Workflow
+## Deduplication Workflow
 
 - **Phase 1 — Locate Duplicates**:
   Run the duplicate locator script using `execute_code`:
   ```bash
-  python3 ~/.hermes/skills/note-taking/obsidian-merger/scripts/find_duplicates.py --vault "<VAULT_ROOT>" [--folder "<SUBDIRECTORY_PATH>"]
+  python3 ~/.hermes/skills/note-taking/obsidian-dedup/scripts/find_duplicates.py --vault "<VAULT_ROOT>" [--folder "<SUBDIRECTORY_PATH>"]
   ```
 - **Phase 2 — Semantic Unification**:
   Read each duplicate note's content. Select a single canonical target path (usually the most relevant subdirectory). Integrate all facts, definitions, and formatting from the duplicates into a single, cohesive canonical note body without losing technical details or references.

@@ -1,11 +1,11 @@
 ---
-name: obsidian-curator
-description: "Curation & Restructure Pipeline — splits monolithic notes into atomic Hub-and-Spoke networks, and restructures/enriches lean, empty, or poorly formatted notes (especially YAML tags) using Obsidian Flavored Markdown (OFM) styling guidelines."
+name: obsidian-refiner
+description: "Refinement & Restructure Pipeline — splits monolithic notes into atomic Hub-and-Spoke networks, and restructures/enriches lean, empty, or poorly formatted notes (especially YAML tags) using Obsidian Flavored Markdown (OFM) styling guidelines."
 ---
 
-# Obsidian Curator — Curation Pipeline
+# Obsidian Refiner — Refinement Pipeline
 
-The Curation pipeline operates in two modes depending on the condition of the target note:
+The Refinement pipeline operates in two modes depending on the condition of the target note:
 1. **Decouple Mode (Decomposition)**: Applied to monolithic notes. Splits the monolith into an index-based Hub note and multiple atomic Spoke notes (target ~40 lines).
 2. **Reformat & Enrich Mode (Restructuring)**: Applied to notes that are empty, too lean (< 600 characters), or badly formatted (especially YAML frontmatter tags). Re-styles the note, corrects metadata schemas, and enriches content with authoritative definitions.
 

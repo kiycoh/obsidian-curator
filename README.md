@@ -1,4 +1,4 @@
-# Obsidian Curator & Note-Taking Pipelines (Hermes)
+# Obsidian Refiner & Note-Taking Pipelines (Hermes)
 
 Hermes is an automated note-taking orchestration toolset designed to manage, ingest, restructure, and unify Markdown notes within Obsidian vaults. It streamlines obsidian workflows using python-based mechanical pipelines, structural validation linting, and semantic mapping.
 
@@ -16,10 +16,10 @@ This repository is organized into self-contained modular components representing
 │   ├── scripts/                 # Python scripts for recon, payload packaging, and writing
 │   ├── SKILL.md                 # Configuration & setup details
 │   └── README.md                # Sub-component documentation
-├── obsidian-curator/            # Monolith decoupling & note restructuring pipeline
+├── obsidian-refiner/            # Monolith decoupling & note restructuring pipeline
 │   ├── templates/               # Standard curation layouts
 │   └── SKILL.md                 # Curation guidelines & styling instructions
-├── obsidian-merger/             # Duplicate note resolver
+├── obsidian-dedup/              # Duplicate note resolver
 │   ├── scripts/                 # Find and merge tools
 │   └── SKILL.md                 # Duplicate consolidation policies
 ├── vault-semantic-mapping/      # Semantic classifier for incoming notes
@@ -33,9 +33,9 @@ This repository is organized into self-contained modular components representing
 ## Features
 
 - **Automated Ingestion (Injector)**: Automatically crawls target inbox folders, performs collision checks with vault notes, generates subagent prompts, validates actions, and writes output programmatically.
-- **Hub-and-Spoke Decomposition (Curator)**: Splits long, monolithic markdown files into structured, decoupled atomic Spoke notes connected back to a central Hub index note.
+- **Hub-and-Spoke Decomposition (Refiner)**: Splits long, monolithic markdown files into structured, decoupled atomic Spoke notes connected back to a central Hub index note.
 - **Note Enrichment & Formatting**: Detects empty or lean notes (<600 characters), performs web searches to gather definitions/equations, reformats frontmatter keys to lower-case, and rewrites notes using Obsidian Flavored Markdown (OFM) syntax.
-- **Duplicate Unification (Merger)**: Finds duplicate note basenames scattered across different directories, merges content seamlessly, and purges obsolete redundant files.
+- **Duplicate Unification (Dedup)**: Finds duplicate note basenames scattered across different directories, merges content seamlessly, and purges obsolete redundant files.
 - **Linter & Verification**: A static linter enforcing Obsidian metadata schemas, cross-note wikilinks, AI provenance headers, and note character limits (max 6,000 characters).
 
 ---
@@ -77,11 +77,11 @@ python3 obsidian-injector/scripts/bulk_writer.py \
     --operations /tmp/operations.validated.json
 ```
 
-### 2. Duplicate Check (Obsidian Merger)
+### 2. Duplicate Check (Obsidian Dedup)
 
 Scan for matching note names located in different vault folders:
 ```bash
-python3 obsidian-merger/scripts/find_duplicates.py \
+python3 obsidian-dedup/scripts/find_duplicates.py \
     --vault "/path/to/vault" \
     --folder "Optional-Subfolder"
 ```
@@ -117,7 +117,7 @@ Any note modified or created by the pipelines must conform to the **Obsidian Fla
 - [Core Playbook](./HERMES.md) — Comprehensive explanation of workflow phases, pipeline controls, and safety fallback conditions.
 - [Obsidian CLI Skills](./obsidian/SKILL.md) — Commands and configurations for interacting with Obsidian CLI tools.
 - [Injector Skill](./obsidian-injector/SKILL.md) — Deep dive into the recon and ingestion pipeline internals.
-- [Curator Skill](./obsidian-curator/SKILL.md) — Structure templates, atomicity rules, and frontmatter constraints.
+- [Refiner Skill](./obsidian-refiner/SKILL.md) — Structure templates, atomicity rules, and frontmatter constraints.
 
 ---
 

@@ -1,17 +1,17 @@
-# Hermes — Obsidian Note-Taking Playbook (Injector, Curator, Merger)
+# Hermes — Obsidian Note-Taking Playbook (Injector, Refiner, Dedup)
 
-You orchestrate the note-taking pipeline for the **Injector** (ingestion), the **Curator** (restructuring/decoupling), and the **Merger** (duplicate note unification) pipelines.
+You orchestrate the note-taking pipeline for the **Injector** (ingestion), the **Refiner** (restructuring/decoupling), and the **Dedup** (duplicate note unification) pipelines.
 
 ## Script & Configuration Paths
 Depending on the environment, the python script and skill root folder paths are:
 - **Vault Deployment**:
-  - Injector & Curator `<SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/scripts/`
-  - Injector & Curator `<SKILL_ROOT>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/`
-  - Merger `<MERGER_SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-merger/scripts/`
+  - Injector & Refiner `<SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/scripts/`
+  - Injector & Refiner `<SKILL_ROOT>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/`
+  - Dedup `<DEDUP_SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-dedup/scripts/`
 - **Skill Repository**:
-  - Injector & Curator `<SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-injector/scripts/`
-  - Injector & Curator `<SKILL_ROOT>`: `~/.hermes/skills/note-taking/obsidian-injector/`
-  - Merger `<MERGER_SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-merger/scripts/`
+  - Injector & Refiner `<SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-injector/scripts/`
+  - Injector & Refiner `<SKILL_ROOT>`: `~/.hermes/skills/note-taking/obsidian-injector/`
+  - Dedup `<DEDUP_SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-dedup/scripts/`
 
 - **Prompts directory** (both deployments): `<SKILL_ROOT>/prompts/`
   Used by Router actions that need to read `distiller_prompt.txt`.
@@ -20,7 +20,7 @@ Locate the active skill folder and prompts directory first (e.g. check if the va
 
 ## Skill & Workflow Selection
 
-You can dynamically choose which workflow to activate based on the target files and scope of the task. However, **if the user explicitly requests or triggers a specific skill** (for example, using prefix commands like `/obsidian-injector`, `/obsidian-curator`, or `/obsidian-merger`), you **must** prioritize and adhere to that requested workflow.
+You can dynamically choose which workflow to activate based on the target files and scope of the task. However, **if the user explicitly requests or triggers a specific skill** (for example, using prefix commands like `/obsidian-injector`, `/obsidian-refiner`, or `/obsidian-dedup`), you **must** prioritize and adhere to that requested workflow.
 
 ## Tool Allocation
 
@@ -157,7 +157,7 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
   ```
 
 
-### 2. Obsidian Curator Workflow
+### 2. Obsidian Refiner Workflow
 Used to either **decouple** a monolithic note into Hub-and-Spoke nodes, or **reformat & enrich** lean, empty, or poorly tagged notes.
 
 - **Phase 1 — Note Inspection**:
@@ -172,13 +172,13 @@ Used to either **decouple** a monolithic note into Hub-and-Spoke nodes, or **ref
 - **Phase 4 — Validate**:
   Run `linter.py` to verify note atomicity, wikilink referencing, and frontmatter parsing.
 
-### 3. Obsidian Merge Workflow
+### 3. Obsidian Deduplication Workflow
 Used to merge duplicate notes of the same name located in different folders across the vault.
 
 - **Phase 1 — Locate Duplicates**:
   Run the mechanical duplicate check script using `execute_code` (optionally targeting a specific subdirectory with `--folder`):
   ```bash
-  python3 <MERGER_SCRIPTS_DIR>/find_duplicates.py --vault "<VAULT_ROOT>" [--folder "<SUBDIRECTORY_PATH>"]
+  python3 <DEDUP_SCRIPTS_DIR>/find_duplicates.py --vault "<VAULT_ROOT>" [--folder "<SUBDIRECTORY_PATH>"]
   ```
 - **Phase 2 — Semantic Unification**:
   Read the contents of each duplicate note. Select a single canonical destination path (e.g. the most relevant folder). Merge the contents smoothly: retain all unique definitions, formulas, and structural links, while unifying and cleaning up the YAML tags.
