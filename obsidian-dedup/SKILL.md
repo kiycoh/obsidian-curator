@@ -39,9 +39,9 @@ This skill requires:
   python3 ~/.hermes/skills/note-taking/hermes_common/bulk_writer.py --operations /tmp/dedup_ops.json
   ```
 - **Phase 4 — Validate**:
-  Run the common linter to ensure the merged note meets atomicity, YAML frontmatter, and link rules:
+  Run the common linter to ensure the merged note meets atomicity and YAML frontmatter rules:
   ```bash
-  python3 ~/.hermes/skills/note-taking/hermes_common/linter.py --files "<CANONICAL_PATH>" --hub "<HUB_NAME>"
+  python3 ~/.hermes/skills/note-taking/hermes_common/linter.py --operations /tmp/dedup_ops.json
   ```
 
 ## Content Preservation & Deletion Rules

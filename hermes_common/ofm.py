@@ -15,10 +15,16 @@ def has_wikilink(content, name):
     return f"[[{name}]]" in content
 
 HEADING_RE = re.compile(r'^(#{1,6})\s+(.*?)\s*$', re.MULTILINE)
+FENCE_RE = re.compile(r'^(`{3,}|~{3,}).*?\n.*?^\1\s*$', re.MULTILINE | re.DOTALL)
 
 def parse_headings(body):
+    """Parse headings, ignoring any inside fenced code blocks."""
+    # Build set of character ranges covered by fences
+    fenced = set()
+    for m in FENCE_RE.finditer(body):
+        fenced.update(range(m.start(), m.end()))
     return [{"level": len(m.group(1)), "text": m.group(2), "pos": m.start()}
-            for m in HEADING_RE.finditer(body)]
+            for m in HEADING_RE.finditer(body) if m.start() not in fenced]
 
 def sections_by_h2(body):
     """Split body at H2 boundaries. Each section's content includes nested H3+.

@@ -25,7 +25,7 @@ def inspect(path):
         "char_count": m["char_count"],
         "line_count": m["line_count"],
         "is_empty": len(body.strip()) == 0,
-        "is_lean": ofm.is_lean(content),
+        "is_lean": ofm.is_lean(body),
         "frontmatter_present": data is not None,
         "frontmatter_issues": frontmatter.lint_tags(data) if data is not None else ["missing/invalid frontmatter"],
         "headings": [{"level": h["level"], "text": h["text"]} for h in headings],

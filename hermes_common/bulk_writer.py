@@ -4,7 +4,6 @@ import os
 import sys
 
 # --- hermes_common bootstrap (uniform across all hermes skills) ---
-import os, sys
 _p = os.path.dirname(os.path.abspath(__file__))
 while _p != os.path.dirname(_p) and not os.path.isdir(os.path.join(_p, "hermes_common")):
     _p = os.path.dirname(_p)
@@ -13,13 +12,6 @@ if _p not in sys.path:
 # --- end bootstrap ---
 
 from hermes_common import templates
-
-# Dynamic Hermes Tools Integration
-try:
-    import hermes_tools
-    HAS_HERMES = True
-except ImportError:
-    HAS_HERMES = False
 
 def write_note(path, content):
     # Use OS native solution for writing notes
@@ -33,15 +25,8 @@ def write_note(path, content):
         return False
 
 def read_note(path):
-    if HAS_HERMES:
-        try:
-            res = hermes_tools.read_file(path=path)
-            if isinstance(res, dict) and "content" in res:
-                return res["content"]
-        except Exception as e:
-            print(f"Hermes RPC read_file failed for {path}: {e}. Falling back to OS read.", file=sys.stderr)
-            
-    # Standalone / fallback
+    # Use OS native solution — hermes_tools.read_file returns LINE|CONTENT
+    # format that corrupts patch ops when embedded verbatim.
     try:
         if os.path.exists(path):
             with open(path, 'r', encoding='utf-8') as f:

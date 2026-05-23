@@ -26,7 +26,7 @@ if __name__ == "__main__":
         print(json.dumps({"path": a.note, "changed": False, "error": "missing/invalid frontmatter"})); raise SystemExit(1)
     before = data.get("tags")
     norm = frontmatter.normalize_tags(data)
-    if norm.get("tags") == before:
+    if (norm.get("tags") or []) == (before if isinstance(before, list) else ([before] if before else [])):
         print(json.dumps({"path": a.note, "changed": False})); raise SystemExit(0)
     new_content = frontmatter.dump(norm, body)
     if a.write:
