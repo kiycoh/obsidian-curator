@@ -281,6 +281,63 @@ class TestValidateOperations(unittest.TestCase):
         self.assertEqual(len(rejected), 1)
         self.assertIn("contains or points to a forbidden inbox directory segment", rejected[0]["reason"])
 
+    def test_coercion_write_to_patch(self):
+        # 1. Coerce write to patch if path exists on disk
+        # target / "Backpropagation.md" exists, so write should be coerced to patch.
+        ops = [
+            {
+                "heading": "Backpropagation",
+                "op": "write",
+                "path": str(self.collision_file),
+                "source_basename": "Lezione 04.md",
+                "snippet": "Coerced write to patch"
+            }
+        ]
+        exit_code, validated, rejected = self.run_validator(ops)
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(validated), 1)
+        self.assertEqual(validated[0]["op"], "patch")
+
+        # 2. Coerce patch to write if path does NOT exist on disk
+        # target / "Adam Optimizer.md" does not exist, so patch should be coerced to write.
+        ops2 = [
+            {
+                "heading": "Adam Optimizer",
+                "op": "patch",
+                "path": str(self.target / "Adam Optimizer.md"),
+                "source_basename": "Lezione 04.md",
+                "snippet": "Coerced patch to write"
+            }
+        ]
+        exit_code, validated, rejected = self.run_validator(ops2)
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(validated), 1)
+        self.assertEqual(validated[0]["op"], "write")
+
+    def test_global_dedup_cross_batch(self):
+        # Multiple operations targeting same path. One with longer snippet wins.
+        # Winner is kept, other is degraded to skip.
+        ops = [
+            {
+                "heading": "Adam Optimizer",
+                "op": "write",
+                "path": str(self.target / "Adam Optimizer.md"),
+                "source_basename": "Lezione 04.md",
+                "snippet": "Short snippet"
+            },
+            {
+                "heading": "Adam Optimizer",
+                "op": "write",
+                "path": str(self.target / "Adam Optimizer.md"),
+                "source_basename": "Lezione 04.md",
+                "snippet": "Longer and richer snippet content"
+            }
+        ]
+        exit_code, validated, rejected = self.run_validator(ops)
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(validated), 1)
+        self.assertEqual(validated[0]["snippet"], "Longer and richer snippet content")
+
 
 class TestDistillerPayload(unittest.TestCase):
     def test_expand_to_double_newline(self):

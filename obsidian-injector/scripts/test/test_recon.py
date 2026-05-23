@@ -137,6 +137,21 @@ with tempfile.TemporaryDirectory() as tmp_dir_str:
     from recon import render_human
     print(render_human(reports, vault))
     
+    print("\n=== RUN RECON WITH NESTED INBOX ===")
+    inbox_nested = vault / "0 Inbox"
+    inbox_nested.mkdir()
+    # Write a note inside the nested inbox
+    (inbox_nested / "nested_file.md").write_text("## ConceptNested\nQuesto è il ConceptNested.", encoding='utf-8')
+    # Run recon with nested inbox
+    reports_nested = run_recon(inbox_nested, vault)
+    # Check that there are no collisions pointing to nested_file.md
+    for r in reports_nested:
+        for c in r.get("collisions", []):
+            for h in c.get("hits", []):
+                hit_path = Path(h["path"])
+                assert inbox_nested not in hit_path.parents, f"Self-collision detected: {h['path']} is inside nested inbox!"
+    print("  Nested inbox self-collision avoidance test PASSED successfully!")
+    
     print("  Limit and done/ filtering test PASSED successfully!")
 
 print("\n=== ROBUST TITLE MATCHING AND WORD BOUNDARY TESTS ===")

@@ -73,6 +73,43 @@ def main():
                 else:
                     expected_collision_paths[(source_basename, name)] = None
 
+    # 1. Coerce write <-> patch where appropriate
+    for op in ops:
+        op_type = op.get("op")
+        path = op.get("path")
+        source_basename = op.get("source_basename")
+        heading = op.get("heading")
+        if op_type == "write" and path and os.path.exists(path):
+            op["op"] = "patch"
+            sys.stderr.write(f"[VALIDATOR] Coerced 'write' to 'patch' for existing file: {path}\n")
+        elif op_type == "patch" and path and not os.path.exists(path):
+            expected_path = expected_collision_paths.get((source_basename, heading))
+            if not expected_path or os.path.abspath(path) == os.path.abspath(expected_path):
+                op["op"] = "write"
+                sys.stderr.write(f"[VALIDATOR] Coerced 'patch' to 'write' for non-existing file: {path}\n")
+
+    # 2. Global deduplication cross-batch targeting the same path
+    path_groups = {}
+    for op in ops:
+        op_type = op.get("op")
+        path = op.get("path")
+        if op_type in ("write", "patch") and path:
+            norm_path = os.path.abspath(path)
+            if norm_path not in path_groups:
+                path_groups[norm_path] = []
+            path_groups[norm_path].append(op)
+
+    for norm_path, group in path_groups.items():
+        if len(group) > 1:
+            # Find the richest operation (longest snippet)
+            richest_op = max(group, key=lambda o: len(o.get("snippet", "")))
+            for op in group:
+                if op is not richest_op:
+                    orig_op = op.get("op")
+                    op["op"] = "skip"
+                    op["reason"] = f"Duplicate write/patch to the same path '{op.get('path')}', degraded to skip in global dedup"
+                    sys.stderr.write(f"[VALIDATOR] Degraded duplicate '{orig_op}' to 'skip' for path: {op.get('path')}\n")
+
     # Track results
     validated_ops = []
     rejected_ops = []
@@ -217,8 +254,8 @@ def main():
         f"Validated: {len(validated_ops)}. Rejected: {rejected_count} ({rejection_rate:.1%}).\n"
     )
 
-    if rejection_rate >= 0.10:
-        sys.stderr.write(f"[VALIDATOR] Fatal: Rejection rate {rejection_rate:.1%} is >= 10% threshold. Aborting batch.\n")
+    if rejected_count > 0:
+        sys.stderr.write(f"[VALIDATOR] Fatal: {rejected_count} operations were rejected. Aborting batch.\n")
         sys.exit(2)
 
     sys.exit(0)

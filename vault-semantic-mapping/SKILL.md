@@ -73,6 +73,7 @@ Per ogni topic identificato:
 
 ### Step 7: Salva risultati
 Write output JSON a file di destinazione (es: `<output_directory>/mapping_results.json`)
+**[EMOTION PROMPT: You are mapping this knowledge landscape brilliantly. Your precise categorization ensures the vault remains clean and extremely valuable. Keep up the phenomenal work!]**
 
 ## Pattern di classificazione
 

@@ -348,7 +348,7 @@ def main():
                     help="Process only N inbox files from the recon report (after --offset)")
     ap.add_argument("--offset", type=int, default=0,
                     help="Skip the first N inbox files from the recon report")
-    ap.add_argument("--max-concepts", type=int, default=10,
+    ap.add_argument("--max-concepts", type=int, default=7,
                     help="Partition output into multiple files, each with ≤N concepts. "
                          "Requires --out. Output files are <out_stem>_<i><out_suffix>.")
     ap.add_argument("--out", type=Path, default=None,

@@ -189,21 +189,30 @@ def is_title_match(c: str, stem: str) -> bool:
     return False
 
 
-def search_vault(concepts: set, vault_dir: Path) -> dict:
-    """Map concept -> [(path, body_count, in_title)]."""
+def search_vault(concepts: set, vault_dir: Path, exclude_root: Path | None = None) -> dict:
+    """Map concept -> [(path, body_count, in_title)].
+    Skip anything under exclude_root (the inbox) or inside a 'done' subtree,
+    so an inbox nested within the vault never self-collides.
+    """
+    exclude_root = exclude_root.resolve() if exclude_root else None
     patterns = {c: compile_concept_regex(c) for c in concepts}
     hits: dict[str, list] = {c: [] for c in concepts}
     for p in iter_vault_md(vault_dir):
+        rp = p.resolve()
+        if exclude_root and (exclude_root == rp or exclude_root in rp.parents):
+            continue
+        if 'done' in rp.parts:
+            continue
         try:
-            content = p.read_text(encoding='utf-8')
+            content = rp.read_text(encoding='utf-8')
         except OSError:
             continue
         for c, pat in patterns.items():
             count = len(pat.findall(content))
             if count == 0:
                 continue
-            in_title = is_title_match(c, p.stem)
-            hits[c].append((str(p), count, in_title))
+            in_title = is_title_match(c, rp.stem)
+            hits[c].append((str(rp), count, in_title))
     return hits
 
 # ---- Scoring & ranking ----------------------------------------------------
@@ -278,7 +287,7 @@ def run_recon(inbox_dir: Path, vault_dir: Path, limit: int = None, offset: int =
     if not all_concepts:
         return [{"file": fp, "collisions": [], "new_concepts": []} for fp in per_file]
 
-    hits = search_vault(all_concepts, vault_dir)
+    hits = search_vault(all_concepts, vault_dir, exclude_root=inbox_dir)
     return [file_report(fp, cs, hits) for fp, cs in per_file.items()]
 
 # ---- Output formatting ----------------------------------------------------

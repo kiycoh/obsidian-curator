@@ -79,6 +79,49 @@ Process EVERY concept in EVERY batch in the payload. Silent omission is a failur
 ## Output Schema
 Respond with ONLY the JSON object below. No prose preamble. No markdown fences (no ```json). No trailing commentary after the closing brace.
 
+## Few-Shot Example
+
+### Example Input Payload:
+{
+  "schema_version": 1,
+  "batches": [
+    {
+      "inbox_file": "/abs/path/to/inbox/Lezione 04.md",
+      "concepts": [
+        {
+          "name": "Backpropagation",
+          "action_hint": "enrich",
+          "inbox_excerpt": "Backpropagation computes the gradient of the loss function. Formula: dL/dw = delta * a.",
+          "vault_collision": {
+            "path": "/abs/path/to/existing/Backpropagation.md",
+            "match_type": "title",
+            "total_hits": 1,
+            "excerpt": "Backpropagation is used in neural networks."
+          }
+        },
+        {
+          "name": "Adam Optimizer",
+          "action_hint": "create",
+          "inbox_excerpt": "Adam is an optimization algorithm. Parameters: beta1=0.9, beta2=0.999.",
+          "vault_collision": null
+        },
+        {
+          "name": "PIL",
+          "action_hint": "likely_skip",
+          "inbox_excerpt": "Use PIL to load images.",
+          "vault_collision": {
+            "path": "/abs/path/to/existing/PIL.md",
+            "match_type": "title",
+            "total_hits": 1,
+            "excerpt": "PIL is Python Imaging Library."
+          }
+        }
+      ]
+    }
+  ]
+}
+
+### Example Output JSON (NO prose, NO markdown fences):
 {
   "updates": [
     {
@@ -86,14 +129,14 @@ Respond with ONLY the JSON object below. No prose preamble. No markdown fences (
       "op": "patch",
       "path": "/abs/path/to/existing/Backpropagation.md",
       "source_basename": "Lezione 04.md",
-      "snippet": "- Definizione formale: la backpropagation calcola il gradiente della funzione di perdita rispetto ai pesi tramite la regola della catena applicata ricorsivamente dallo strato di output verso l'input.\n- Formula del gradiente per il peso $w_{ij}^{(l)}$: $\\frac{\\partial \\mathcal{L}}{\\partial w_{ij}^{(l)}} = \\delta_j^{(l)} \\cdot a_i^{(l-1)}$\n- Esempio numerico: rete a 2 strati con loss MSE, learning rate 0.01 ..."
+      "snippet": "- Definizione formale: la backpropagation calcola il gradiente della funzione di perdita rispetto ai pesi tramite la regola della catena applicata ricorsivamente dallo strato di output verso l'input.\n- Formula del gradiente per il peso $w_{ij}^{(l)}$: $\\frac{\\partial \\mathcal{L}}{\\partial w_{ij}^{(l)}} = \\delta_j^{(l)} \\cdot a_i^{(l-1)}$"
     },
     {
       "heading": "Adam Optimizer",
       "op": "write",
-      "path": "/abs/path/to/TARGET/Adam Optimizer.md",
+      "path": "{TARGET}/Adam Optimizer.md",
       "source_basename": "Lezione 04.md",
-      "snippet": "Adam (Adaptive Moment Estimation) è un algoritmo di ottimizzazione stocastica che combina i vantaggi di AdaGrad e RMSProp mantenendo medie mobili sia del gradiente (primo momento) sia del suo quadrato (secondo momento).\n\n- Iperparametri tipici: $\\beta_1 = 0.9$, $\\beta_2 = 0.999$, $\\epsilon = 10^{-8}$\n- Aggiornamento dei pesi: $\\theta_{t+1} = \\theta_t - \\frac{\\eta \\hat{m}_t}{\\sqrt{\\hat{v}_t} + \\epsilon}$\n- Vantaggio chiave: adattamento per-parametro del learning rate"
+      "snippet": "Adam (Adaptive Moment Estimation) è un algoritmo di ottimizzazione stocastica che combina i vantaggi di AdaGrad e RMSProp mantenendo medie mobili sia del gradiente (primo momento) sia del suo quadrato (secondo momento).\n\n- Iperparametri tipici: $\\beta_1 = 0.9$, $\\beta_2 = 0.999$, $\\epsilon = 10^{-8}$"
     },
     {
       "heading": "PIL",

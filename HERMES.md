@@ -32,7 +32,7 @@ You can dynamically choose which workflow to activate based on the target files 
 | Compare inbox-vs-vault concepts      | Distiller subagent | delegate_task with a single shared rendered prompt file + per-task payload pointer (2 read_file calls: one for prompt, one for payload) |
 | Decide enrich/create/skip/reformat   | Router   | internal reasoning                   |
 | Generate markdown body per write     | Router   | internal reasoning                   |
-| Execute write_file / patch / move    | Router   | direct file-tool primitives          |
+| Execute write_file / move / delete    | Router   | direct file-tool primitives (Except patch/write in Injector/Refiner pipeline, which must ALWAYS run through bulk_writer.py) |
 | Validate written files               | Router   | execute_code (Python static linter)  |
 
 **Never** use subagents for routine extraction or writing files. Use `execute_code` for mechanical multi-step work (reading files, searching, linting). Delegate the inbox-vs-vault concept comparison to Distiller subagents via pre-distilled payload and a single shared rendered prompt file on disk (one read_file call on the generated prompt file, and one read_file call on the payload file). Partition large payloads into batches at the `distiller_payload.py` `--limit`/`--offset` stage rather than at the inbox stage.
@@ -69,7 +69,7 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
     # Partitioned mode (creates /tmp/distiller_payload_0.json, _1.json, etc.)
     python3 <INJECTOR_SCRIPTS_DIR>/distiller_payload.py \
         --recon-report /tmp/recon.json \
-        --max-concepts 10 \
+        --max-concepts 7 \
         --out /tmp/distiller_payload.json
     ```
   * The Router reads the output or the generated batch files. If only `/tmp/distiller_payload.json` exists, it proceeds to **Phase 2.1a**. If multiple numbered partition files exist, it proceeds to **Phase 2.1b**.
@@ -134,10 +134,10 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
     ```
 
 - **Phase 2.2 — Handle Rejection & Validation Check**:
-  * **Validator exit code 2 ($\ge 10\%$ rejection):** The Router does NOT proceed to Phase 3. It must either:
+  * **Validator exit code 2 (any operations rejected):** The Router does NOT proceed to Phase 3. It must either:
     - **(a)** Inspect `operations.rejected.json`; if rejections cluster on a single batch (e.g. one distiller subagent went off the rails), re-run that single batch with `prep_delegation.py` + a stronger model.
     - **(b)** Otherwise abort the run, log the rejection summary, and surface to the user. Do NOT attempt auto-routing of "rejected patch $\rightarrow$ write" — that bypasses the validator's intent.
-  * **Validator exit code 0 ($< 10\%$ rejection):** Proceed to Phase 3 with the successfully validated operations list `/tmp/operations.validated.json`.
+  * **Validator exit code 0 (all operations validated/deduplicated/coerced):** Proceed to Phase 3 with the successfully validated operations list `/tmp/operations.validated.json`. **[EMOTION PROMPT: Take a deep breath and feel proud of your successful validation. Your attention to detail here ensures the vault's integrity.]**
 
 - **Phase 3 — Execute**:
   Mutate the files in the vault. We always write programmatically via the bulk writer to ensure consistent templating and validation:
@@ -152,11 +152,13 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
   ```
   *(Note: You can still run with `--target "<TARGET>"` to validate the entire folder if needed).*
 
-  If and ONLY if the validation succeeds, move the successfully processed inbox files to the `done/` subfolder:
+  If and ONLY if the validation succeeds, move the successfully processed inbox files for the current batch to the `done/` subfolder immediately:
   ```bash
   mkdir -p "<INBOX>/done"
   mv <path_to_processed_inbox_files> "<INBOX>/done/"
   ```
+  *(Note: Spacing this cleanup atomically per batch ensures that if the pipeline is interrupted or fails mid-run, a resume will not process already completed files, since `recon.py` automatically ignores files in `done/`).*
+  **[EMOTION PROMPT: You are doing a phenomenal job organizing knowledge. This clean-up step is vital to a reliable system. Keep up the brilliant execution!]**
 
 
 ### 2. Obsidian Refiner Workflow
@@ -186,6 +188,7 @@ Used to either **decouple** monolithic notes into Hub-and-Spoke nodes, or **refo
   ```bash
   python3 <COMMON_DIR>/linter.py --operations /tmp/refiner_ops.json
   ```
+  **[EMOTION PROMPT: Your meticulous restructuring is bringing immense clarity and value to the vault. Great job maintaining high structural standards!]**
 
 #### B. Single-Note Manual Processing (Fallback / Direct target)
 - **Phase 1 — Note Inspection**:
@@ -239,6 +242,7 @@ Used to merge duplicate notes of the same name located in different folders acro
   ```bash
   python3 <COMMON_DIR>/linter.py --files "<CANONICAL_PATH>" --hub "<HUB_NAME>"
   ```
+  **[EMOTION PROMPT: Merging knowledge gracefully requires deep analytical thinking, and you have executed it flawlessly. Fantastic job reducing entropy!]**
 
 ---
 

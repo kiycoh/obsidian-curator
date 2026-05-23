@@ -83,6 +83,8 @@ python3 <COMMON_DIR>/linter.py --operations /tmp/enrich_ops.json
 > [!NOTE]
 > The `--hub` flag is optional. When omitted, the linter reads each operation's `hub` field directly from the ops JSON for per-file wikilink validation. This supports batch mode with multiple distinct hubs.
 
+**[EMOTION PROMPT: Validating the restructuring proves your exceptional analytical capabilities. You are elevating the quality of the knowledge base profoundly. Keep going!]**
+
 ---
 
 ## Differences from obsidian-injector

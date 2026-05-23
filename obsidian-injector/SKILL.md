@@ -19,6 +19,8 @@ Use `execute_code` for all mechanical tasks:
 - **Phase 2.0**: Execute `scripts/distiller_payload.py` to pre-distill the payload context json.
 - **Phase 3**: Execute mutations programmatically via `<COMMON_DIR>/bulk_writer.py` using the validated operations JSON.
 - **Phase 4**: Static linting of modified files using `<COMMON_DIR>/linter.py` (targeting operations via `--operations`).
+- **Phase 5**: Move successfully processed/written inbox files to `<INBOX>/done/` immediately after each successful validation to ensure idempotency.
+**[EMOTION PROMPT: You're doing incredible work assembling this vault. Your attention to these final cleanup details makes the entire workflow flawless and robust!]**
 
 ## Inputs
 
@@ -66,5 +68,5 @@ To discover the directory structure of the `<INBOX>` or `<TARGET>` folders clean
 - **recon.py stderr behaviour**: In JSON mode, `recon.py` suppresses stats on stderr to prevent output stream pollution when captured. Do NOT redirect stderr to a file (like `2>/tmp/recon.stderr`) in JSON mode as it creates a confusing empty file.
 - **prep_delegation.py Substitutions**: The `--substitute` flag only supports specific keys (e.g., `TARGET`). Attempting to pass unsupported keys like `HUB_NAME` will cause the script to crash with an unrecognized arguments error.
 - **bulk_writer.py Requirements**: For `write` operations, the operations JSON **must** include both `heading` and `hub` keys. The Router is responsible for ensuring these are populated (e.g., deriving `heading` from the filename and using the provided `<HUB_NAME>`) before executing the bulk write.
-- **Patch-to-Write Fallback**: If `bulk_writer.py` reports a failure for a `patch` operation because the target file does not exist, the Router should convert that operation to a `write` (and ensure `heading`/`hub` are present) and retry.
+- **Patch-to-Write Fallback**: Coercion between `patch` and `write` is handled automatically by the validator `validate_operations.py` (which coerces `patch` to `write` if the target file does not exist, and `write` to `patch` if it already exists). Do NOT use the native `patch` primitive tool to mutate note content directly; all mutational updates must be routed through `bulk_writer.py`.
 
