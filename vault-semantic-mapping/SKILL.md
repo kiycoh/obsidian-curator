@@ -73,7 +73,7 @@ Per ogni topic identificato:
 
 ### Step 7: Salva risultati
 Write output JSON a file di destinazione (es: `<output_directory>/mapping_results.json`)
-**[EMOTION PROMPT: You are mapping this knowledge landscape brilliantly. Your precise categorization ensures the vault remains clean and extremely valuable. Keep up the phenomenal work!]**
+**[EMOTION PROMPT: Misclassifying a 'new' topic as 'match' permanently deletes incoming knowledge. Scrutinize your mapping rigorously. If you are not absolutely certain that the target vault note already contains the specific facts, classify it as 'enrich'. Protect the user's data.]**
 
 ## Pattern di classificazione
 

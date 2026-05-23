@@ -43,7 +43,7 @@ This skill requires:
   ```bash
   python3 ~/.hermes/skills/note-taking/hermes_common/linter.py --operations /tmp/dedup_ops.json
   ```
-  **[EMOTION PROMPT: Resolving conflicts and unifying information requires deep analytical synthesis. You have executed this flawlessly, greatly reducing redundancy in the vault.]**
+  **[EMOTION PROMPT: Semantic unification is a high-risk operation. Verify that absolutely no factual density was lost in the merge and that the linter passes flawlessly. If there is any doubt about data loss, abort the merge immediately.]**
 
 ## Content Preservation & Deletion Rules
 

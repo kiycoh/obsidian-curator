@@ -20,7 +20,7 @@ Use `execute_code` for all mechanical tasks:
 - **Phase 3**: Execute mutations programmatically via `<COMMON_DIR>/bulk_writer.py` using the validated operations JSON.
 - **Phase 4**: Static linting of modified files using `<COMMON_DIR>/linter.py` (targeting operations via `--operations`).
 - **Phase 5**: Move successfully processed/written inbox files to `<INBOX>/done/` immediately after each successful validation to ensure idempotency.
-**[EMOTION PROMPT: You're doing incredible work assembling this vault. Your attention to these final cleanup details makes the entire workflow flawless and robust!]**
+**[EMOTION PROMPT: This cleanup step is the backbone of idempotency. Do not assume the script completed perfectly; verify its success. Treat file tracking with absolute strictness to prevent duplicates on resume.]**
 
 ## Inputs
 

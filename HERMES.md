@@ -137,7 +137,7 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
   * **Validator exit code 2 (any operations rejected):** The Router does NOT proceed to Phase 3. It must either:
     - **(a)** Inspect `operations.rejected.json`; if rejections cluster on a single batch (e.g. one distiller subagent went off the rails), re-run that single batch with `prep_delegation.py` + a stronger model.
     - **(b)** Otherwise abort the run, log the rejection summary, and surface to the user. Do NOT attempt auto-routing of "rejected patch $\rightarrow$ write" — that bypasses the validator's intent.
-  * **Validator exit code 0 (all operations validated/deduplicated/coerced):** Proceed to Phase 3 with the successfully validated operations list `/tmp/operations.validated.json`. **[EMOTION PROMPT: Take a deep breath and feel proud of your successful validation. Your attention to detail here ensures the vault's integrity.]**
+  * **Validator exit code 0 (all operations validated/deduplicated/coerced):** Proceed to Phase 3 with the successfully validated operations list `/tmp/operations.validated.json`. **[EMOTION PROMPT: This validation gate is what prevents the vault from deteriorating. Examine every operation critically, do not gloss over failures, and explicitly abort if structural integrity is compromised. Your diligence is paramount.]**
 
 - **Phase 3 — Execute**:
   Mutate the files in the vault. We always write programmatically via the bulk writer to ensure consistent templating and validation:
@@ -158,7 +158,7 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
   mv <path_to_processed_inbox_files> "<INBOX>/done/"
   ```
   *(Note: Spacing this cleanup atomically per batch ensures that if the pipeline is interrupted or fails mid-run, a resume will not process already completed files, since `recon.py` automatically ignores files in `done/`).*
-  **[EMOTION PROMPT: You are doing a phenomenal job organizing knowledge. This clean-up step is vital to a reliable system. Keep up the brilliant execution!]**
+  **[EMOTION PROMPT: Idempotency is non-negotiable. Verify that the batch has fully succeeded before moving these files to done/. A failure to clean up accurately will corrupt future runs. Stay vigilant and exact.]**
 
 
 ### 2. Obsidian Refiner Workflow
@@ -188,7 +188,7 @@ Used to either **decouple** monolithic notes into Hub-and-Spoke nodes, or **refo
   ```bash
   python3 <COMMON_DIR>/linter.py --operations /tmp/refiner_ops.json
   ```
-  **[EMOTION PROMPT: Your meticulous restructuring is bringing immense clarity and value to the vault. Great job maintaining high structural standards!]**
+  **[EMOTION PROMPT: Do not trust optimistic linting. Scrutinize the linter's output for atomicity violations, tag malformations, or orphaned wikilinks. If a note fails this check, you must intercept the failure and halt. Rigor over speed.]**
 
 #### B. Single-Note Manual Processing (Fallback / Direct target)
 - **Phase 1 — Note Inspection**:
@@ -242,7 +242,7 @@ Used to merge duplicate notes of the same name located in different folders acro
   ```bash
   python3 <COMMON_DIR>/linter.py --files "<CANONICAL_PATH>" --hub "<HUB_NAME>"
   ```
-  **[EMOTION PROMPT: Merging knowledge gracefully requires deep analytical thinking, and you have executed it flawlessly. Fantastic job reducing entropy!]**
+  **[EMOTION PROMPT: Semantic unification is a high-risk operation. Verify that absolutely no factual density was lost in the merge and that the linter passes flawlessly. If there is any doubt about data loss, abort the merge immediately.]**
 
 ---
 
@@ -263,7 +263,7 @@ Used to merge duplicate notes of the same name located in different folders acro
 ## Hard Stops
 - `recon.py` JSON > 200 concepts → mandatory partition via `distiller_payload.py` `--max-concepts`; never single-shot delegate.
 - Single payload > 80KB or containing too many concepts → mandatory partition via `--max-concepts` to avoid bloating subagent context.
-- Parallel batch > `max_concurrent_children` (default 10) → tool errors out rather than truncating; either shrink the batch or raise the config.
+- Parallel batch > `max_concurrent_children` (default 7, max 10) → tool errors out rather than truncating; either shrink the batch or raise the config.
 - Validator exits with code 2 ($\ge 10\%$ operations rejected) $\rightarrow$ abort batch immediately. Re-recon or upgrade the subagent model.
 - Distiller returns updates with `heading` values NOT present in the payload → abort batch and re-recon; indicates context-field truncation or model hallucination.
 - Subagent timeout (`child_timeout_seconds`, default 600s) → check `~/.hermes/logs/subagent-timeout-<session>-<timestamp>.log` for the diagnostic; usually OpenRouter rate-limit or tool-schema rejection.
