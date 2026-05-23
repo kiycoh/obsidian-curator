@@ -18,6 +18,37 @@ except ImportError:
     HAS_HERMES = False
 
 
+def resolve_hub_name(note_path, hub_arg):
+    """
+    Resolve the actual hub note name. If a markdown file matching hub_arg (or starting with it)
+    exists in the same directory as note_path, return its basename (without .md).
+    Otherwise, return hub_arg itself.
+    """
+    dir_path = os.path.dirname(note_path)
+    if not os.path.isdir(dir_path):
+        return hub_arg
+
+    # Check exact match first
+    exact_file = os.path.join(dir_path, f"{hub_arg}.md")
+    if os.path.isfile(exact_file):
+        return hub_arg
+
+    # Look for a file starting with hub_arg (case-insensitive) in the same folder
+    try:
+        hub_lower = hub_arg.lower()
+        candidates = []
+        for f in os.listdir(dir_path):
+            if f.lower().startswith(hub_lower) and f.endswith(".md"):
+                candidates.append(f[:-3])
+        if candidates:
+            candidates.sort(key=len)
+            return candidates[0]
+    except Exception:
+        pass
+
+    return hub_arg
+
+
 def validate_note(path, hub, op_type=None):
     errors = []
     try:
@@ -28,9 +59,12 @@ def validate_note(path, hub, op_type=None):
         if data is None:
             errors.append("Missing or invalid frontmatter")
 
+        # Resolve the actual hub name from the file's parent directory
+        resolved_hub = resolve_hub_name(path, hub)
+
         # hub wikilink: required for spoke write/patch; NOT for hub-index/reformat/merge overwrites
-        if op_type != "overwrite" and not ofm.has_wikilink(content, hub):
-            errors.append(f"Missing wikilink to [[{hub}]]")
+        if op_type != "overwrite" and not ofm.has_wikilink(content, resolved_hub):
+            errors.append(f"Missing wikilink to [[{resolved_hub}]]")
 
         # atomicity: skip for patch (append) only
         if op_type != "patch":
