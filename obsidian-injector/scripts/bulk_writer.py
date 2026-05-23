@@ -15,15 +15,7 @@ except ImportError:
     HAS_HERMES = False
 
 def write_note(path, content):
-    if HAS_HERMES:
-        try:
-            hermes_tools.write_file(path=path, content=content)
-            return True
-        except Exception as e:
-            # Fall back to local file system if RPC fails
-            print(f"Hermes RPC write_file failed for {path}: {e}. Falling back to OS write.", file=sys.stderr)
-    
-    # Standalone fallback / local filesystem
+    # Use OS native solution for writing notes
     try:
         os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
         with open(path, 'w', encoding='utf-8') as f:
