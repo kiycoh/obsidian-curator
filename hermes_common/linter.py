@@ -8,11 +8,18 @@ if _p not in sys.path:
 # --- end bootstrap ---
 
 import os, re, sys, yaml, json, argparse
+from pathlib import Path
 from hermes_common import ofm, frontmatter
 
 
 def validate_note(path, hub, op_type=None):
+    """Validate a single note.
+
+    Returns (errors, warnings) where errors are hard violations that fail
+    the pipeline and warnings are auditable flags that do NOT block.
+    """
     errors = []
+    warnings = []
     try:
         with open(path, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -32,9 +39,15 @@ def validate_note(path, hub, op_type=None):
                 errors.append(f"Note too long ({m['line_count']} lines)")
             if m["char_count"] > ofm.LIMITS["max_chars"]:
                 errors.append(f"Note too large ({m['char_count']} chars)")
+
+        # OFM structural lint (calibrated against golden notes)
+        r = ofm.ofm_lint(content, stem=Path(path).stem)
+        errors += r["violations"]
+        warnings += r["flags"]
+
     except Exception as e:
         errors.append(f"Read error: {e}")
-    return errors
+    return errors, warnings
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -90,31 +103,46 @@ if __name__ == "__main__":
                 files_to_check.append((os.path.join(args.target, f), None, None))
 
 
-    results = {}
+    error_results = {}
+    warning_results = {}
     for path, op_type, per_file_hub in files_to_check:
         effective_hub = args.hub or per_file_hub
         if os.path.exists(path):
-            errs = validate_note(path, effective_hub, op_type)
+            errs, warns = validate_note(path, effective_hub, op_type)
             if errs:
-                results[os.path.basename(path)] = errs
+                error_results[os.path.basename(path)] = errs
+            if warns:
+                warning_results[os.path.basename(path)] = warns
         else:
-            results[os.path.basename(path)] = ["File does not exist"]
+            error_results[os.path.basename(path)] = ["File does not exist"]
     
     if args.format == "json":
         print(json.dumps({
-            "success": not results,
-            "failed_count": len(results),
-            "errors": results
+            "success": not error_results,
+            "failed_count": len(error_results),
+            "errors": error_results,
+            "warning_count": len(warning_results),
+            "warnings": warning_results,
         }, indent=2, ensure_ascii=False))
-        if results:
+        if error_results:
             sys.exit(1)
     else:
-        if not results:
+        # Warnings (flags) — always printed, never block
+        if warning_results:
+            print(f"Warnings for {len(warning_results)} files:")
+            for fname, warns in warning_results.items():
+                print(f"  ⚠ {fname}:")
+                for w in warns:
+                    print(f"    · {w}")
+            print()  # blank line separator
+
+        # Errors (violations) — block pipeline
+        if not error_results:
             print("All files validated successfully.")
         else:
-            print(f"Validation failed for {len(results)} files:")
-            for fname, errs in results.items():
-                print(f"  - {fname}:")
+            print(f"Validation failed for {len(error_results)} files:")
+            for fname, errs in error_results.items():
+                print(f"  ✗ {fname}:")
                 for err in errs:
                     print(f"    * {err}")
             sys.exit(1)

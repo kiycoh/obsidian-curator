@@ -24,11 +24,20 @@ def clean_tag(t):
     t = re.sub(r'[\s_]+', '-', t)
     return t.strip('-')
 
+def _ensure_tag_list(raw):
+    """Coerce raw tags value into a list, splitting CSV scalars."""
+    if not raw:
+        return []
+    if isinstance(raw, str):
+        # Detect inline-CSV scalar: "a, b, c" → ["a", "b", "c"]
+        if "," in raw:
+            return [s.strip() for s in raw.split(",") if s.strip()]
+        return [raw]
+    return list(raw)
+
 def lint_tags(data):
     issues = []
-    tags = (data or {}).get('tags') or []
-    if isinstance(tags, str):
-        tags = [tags]
+    tags = _ensure_tag_list((data or {}).get('tags'))
     for t in tags:
         ct = clean_tag(t)
         if ct != str(t):
@@ -39,9 +48,7 @@ def lint_tags(data):
 
 def normalize_tags(data):
     data = dict(data or {})
-    tags = data.get('tags') or []
-    if isinstance(tags, str):
-        tags = [tags]
+    tags = _ensure_tag_list(data.get('tags'))
     seen, out = set(), []
     for t in tags:
         ct = clean_tag(t)
