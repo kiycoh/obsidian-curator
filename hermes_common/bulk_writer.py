@@ -3,9 +3,16 @@ import json
 import os
 import sys
 
-# Add script directory to path to import templates
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import templates
+# --- hermes_common bootstrap (uniform across all hermes skills) ---
+import os, sys
+_p = os.path.dirname(os.path.abspath(__file__))
+while _p != os.path.dirname(_p) and not os.path.isdir(os.path.join(_p, "hermes_common")):
+    _p = os.path.dirname(_p)
+if _p not in sys.path:
+    sys.path.insert(0, _p)
+# --- end bootstrap ---
+
+from hermes_common import templates
 
 # Dynamic Hermes Tools Integration
 try:
@@ -42,6 +49,16 @@ def read_note(path):
     except Exception as e:
         print(f"Failed to read note from {path}: {e}", file=sys.stderr)
     return None
+
+def delete_note(path):
+    """Delete a note verbatim from filesystem."""
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+        return True
+    except Exception as e:
+        print(f"Failed to delete note {path}: {e}", file=sys.stderr)
+        return False
 
 def main():
     parser = argparse.ArgumentParser(description="Bulk note writer and patcher for Hermes obsidian-injector")
@@ -121,6 +138,23 @@ def main():
             if ok:
                 success_count += 1
             results.append({"index": idx, "path": path, "op": "patch", "success": ok})
+
+        elif op_type == "overwrite":
+            content = op.get("content")
+            if content is None:
+                results.append({"index": idx, "path": path, "success": False,
+                                "error": "Missing 'content' for overwrite operation"})
+                continue
+            ok = write_note(path, content)
+            if ok:
+                success_count += 1
+            results.append({"index": idx, "path": path, "op": "overwrite", "success": ok})
+
+        elif op_type == "delete":
+            ok = delete_note(path)
+            if ok:
+                success_count += 1
+            results.append({"index": idx, "path": path, "op": "delete", "success": ok})
 
         else:
             results.append({"index": idx, "path": path, "success": False, "error": f"Unknown operation type: {op_type}"})
