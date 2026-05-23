@@ -1,15 +1,18 @@
+# --- hermes_common bootstrap (uniform across all hermes skills) ---
+import os, sys
+_p = os.path.dirname(os.path.abspath(__file__))
+while _p != os.path.dirname(_p) and not os.path.isdir(os.path.join(_p, "hermes_common")):
+    _p = os.path.dirname(_p)
+if _p not in sys.path:
+    sys.path.insert(0, _p)
+# --- end bootstrap ---
+
 import datetime, re
+from hermes_common.frontmatter import clean_tag  # canonical; do not redefine
 
 def slugify(s: str) -> str:
     s = re.sub(r'[\\/:*?"<>|]', '', s)
     return s.strip().replace('  ', ' ')  # keep spaces, Obsidian likes them
-
-def clean_tag(t: str) -> str:
-    t = re.sub(r'^[\d\.]+\s*', '', t)
-    t = t.lower()
-    t = re.sub(r'[^a-z0-9\s-]', '', t)
-    t = re.sub(r'[\s_]+', '-', t)
-    return t.strip('-')
 
 def template_spoke(heading: str, snippet: str, hub: str, tags: list[str] = None, related: list[str] = None) -> str:
     today = datetime.date.today().strftime("%Y, %m, %d")
