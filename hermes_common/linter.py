@@ -1,4 +1,14 @@
+# --- hermes_common bootstrap (uniform across all hermes skills) ---
+import os, sys
+_p = os.path.dirname(os.path.abspath(__file__))
+while _p != os.path.dirname(_p) and not os.path.isdir(os.path.join(_p, "hermes_common")):
+    _p = os.path.dirname(_p)
+if _p not in sys.path:
+    sys.path.insert(0, _p)
+# --- end bootstrap ---
+
 import os, re, sys, yaml, json, argparse
+from hermes_common import ofm, frontmatter
 
 # Dynamic Hermes Tools Integration
 try:
@@ -13,32 +23,24 @@ def validate_note(path, hub, op_type=None):
     try:
         with open(path, 'r', encoding='utf-8') as f:
             content = f.read()
-        
-        # 1. Valid Frontmatter
-        fm_match = re.match(r'^---\s*\n(.*?)\n---\s*\n', content, re.DOTALL)
-        if not fm_match:
+
+        data, _, _ = frontmatter.split(content)
+        if data is None:
             errors.append("Missing or invalid frontmatter")
-        else:
-            try:
-                yaml.safe_load(fm_match.group(1))
-            except Exception as e:
-                errors.append(f"YAML error: {e}")
-        
-        # 2. Outgoing wikilink to Hub
-        if f"[[{hub}]]" not in content:
+
+        # hub wikilink: required for spoke write/patch; NOT for hub-index/reformat/merge overwrites
+        if op_type != "overwrite" and not ofm.has_wikilink(content, hub):
             errors.append(f"Missing wikilink to [[{hub}]]")
-            
-        # 3. Atomicity (approx 40 lines / 1500 chars) - Skip for patch operations
+
+        # atomicity: skip for patch (append) only
         if op_type != "patch":
-            lines = content.splitlines()
-            if len(lines) > 60:
-                errors.append(f"Note too long ({len(lines)} lines)")
-            if len(content) > 6000:
-                errors.append(f"Note too large ({len(content)} chars)")
-            
+            m = ofm.metrics(content)
+            if m["line_count"] > ofm.LIMITS["max_lines"]:
+                errors.append(f"Note too long ({m['line_count']} lines)")
+            if m["char_count"] > ofm.LIMITS["max_chars"]:
+                errors.append(f"Note too large ({m['char_count']} chars)")
     except Exception as e:
         errors.append(f"Read error: {e}")
-        
     return errors
 
 if __name__ == "__main__":
@@ -72,9 +74,10 @@ if __name__ == "__main__":
             with open(args.operations, 'r', encoding='utf-8') as f:
                 ops = json.load(f)
             for op in ops:
+                if op.get("op") == "delete":
+                    continue
                 path = op.get("path")
-                # Only check files that were written or patched
-                if path and op.get("op") in ("write", "patch") and path.endswith('.md'):
+                if path and path.endswith('.md'):
                     files_to_check.append((path, op.get("op")))
         except Exception as e:
             if args.format == "json":
