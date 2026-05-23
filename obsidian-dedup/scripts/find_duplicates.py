@@ -1,10 +1,10 @@
-import os, json, argparse, sys
+import os, json, argparse, sys, re
 
 def find_duplicates(vault_path, folder_path=None):
     search_path = folder_path if folder_path else vault_path
     
-    # Map from lowercase filename (without extension) to list of full file paths
-    name_map = {}
+    # Map from normalized name to dict: {"paths": [...], "representative_name": "..."}
+    groups = {}
     
     for root, dirs, files in os.walk(search_path):
         # Skip hidden folders like .git or .obsidian
@@ -12,16 +12,35 @@ def find_duplicates(vault_path, folder_path=None):
         
         for file in files:
             if file.endswith('.md'):
-                name_lower = file.lower()
-                basename = os.path.splitext(name_lower)[0]
+                orig_name = os.path.splitext(file)[0]
+                
+                # Normalize name:
+                # 1. Strip parenthetical suffixes (e.g., "Subword Tokenization (NLP)" -> "Subword Tokenization")
+                norm = re.sub(r'\s*\(.*?\)\s*$', '', orig_name)
+                # 2. Lowercase
+                norm = norm.lower()
+                # 3. Strip non-alphanumeric characters
+                norm = re.sub(r'[^a-z0-9]', '', norm)
+                
                 full_path = os.path.abspath(os.path.join(root, file))
                 
-                if basename not in name_map:
-                    name_map[basename] = []
-                name_map[basename].append(full_path)
+                if norm not in groups:
+                    groups[norm] = {
+                        "paths": [],
+                        "representative_name": orig_name
+                    }
+                groups[norm]["paths"].append(full_path)
                 
-    # Filter only duplicates
-    duplicates = {name: paths for name, paths in name_map.items() if len(paths) > 1}
+                # Keep the shortest name as the representative name to avoid suffixes
+                if len(orig_name) < len(groups[norm]["representative_name"]):
+                    groups[norm]["representative_name"] = orig_name
+                    
+    # Filter only duplicates and map to their representative names
+    duplicates = {}
+    for norm, group in groups.items():
+        if len(group["paths"]) > 1:
+            duplicates[group["representative_name"]] = group["paths"]
+            
     return duplicates
 
 if __name__ == "__main__":

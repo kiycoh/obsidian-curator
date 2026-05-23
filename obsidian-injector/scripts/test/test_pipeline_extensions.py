@@ -24,6 +24,10 @@ import validate_operations
 from hermes_common import templates
 import distiller_payload
 
+# Import dedup finder
+sys.path.insert(0, os.path.join(_p, "obsidian-dedup", "scripts"))
+import find_duplicates
+
 
 
 class TestParseDistillerOutput(unittest.TestCase):
@@ -297,6 +301,49 @@ class TestDistillerPayload(unittest.TestCase):
         # Fallback to hard limit if max_chars is extremely short
         short_truncated = distiller_payload.safe_truncate(text, 10)
         self.assertEqual(short_truncated, "This is a")
+
+
+class TestFindDuplicates(unittest.TestCase):
+    def setUp(self):
+        self.tmp_dir = tempfile.TemporaryDirectory()
+        self.vault = Path(self.tmp_dir.name) / "vault"
+        self.vault.mkdir()
+        self.sub1 = self.vault / "sub1"
+        self.sub1.mkdir()
+        self.sub2 = self.vault / "sub2"
+        self.sub2.mkdir()
+
+    def tearDown(self):
+        self.tmp_dir.cleanup()
+
+    def test_find_semantic_duplicates(self):
+        # Create "Sub-word Tokenization" and "Subword Tokenization (NLP)"
+        f1 = self.sub1 / "Sub-word Tokenization.md"
+        f1.write_text("content 1", encoding="utf-8")
+        f2 = self.sub2 / "Subword Tokenization (NLP).md"
+        f2.write_text("content 2", encoding="utf-8")
+
+        # Create "Word form" and "Wordform (NLP)"
+        f3 = self.sub1 / "Word form.md"
+        f3.write_text("content 3", encoding="utf-8")
+        f4 = self.sub2 / "Wordform (NLP).md"
+        f4.write_text("content 4", encoding="utf-8")
+
+        # Create a non-duplicate file
+        f5 = self.sub1 / "Unique Note.md"
+        f5.write_text("content 5", encoding="utf-8")
+
+        dupes = find_duplicates.find_duplicates(str(self.vault))
+        
+        self.assertEqual(len(dupes), 2)
+        
+        # Verify "Sub-word Tokenization" is grouped
+        self.assertIn("Sub-word Tokenization", dupes)
+        self.assertEqual(set(dupes["Sub-word Tokenization"]), {str(f1.resolve()), str(f2.resolve())})
+        
+        # Verify "Word form" is grouped
+        self.assertIn("Word form", dupes)
+        self.assertEqual(set(dupes["Word form"]), {str(f3.resolve()), str(f4.resolve())})
 
 
 if __name__ == "__main__":
