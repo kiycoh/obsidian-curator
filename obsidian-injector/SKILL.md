@@ -17,8 +17,8 @@ The curation process must adhere strictly to these principles:
 Use `execute_code` for all mechanical tasks:
 - **Phase 1**: Execute `scripts/recon.py` to iterate inbox and search vault.
 - **Phase 2.0**: Execute `scripts/distiller_payload.py` to pre-distill the payload context json.
-- **Phase 3**: Execute mutations programmatically via `scripts/bulk_writer.py` using the validated operations JSON.
-- **Phase 4**: Static linting of modified files using `scripts/linter.py` (targeting operations via `--operations`).
+- **Phase 3**: Execute mutations programmatically via `<COMMON_DIR>/bulk_writer.py` using the validated operations JSON.
+- **Phase 4**: Static linting of modified files using `<COMMON_DIR>/linter.py` (targeting operations via `--operations`).
 
 ## Inputs
 
@@ -36,9 +36,9 @@ The Router must have access to the bundled `obsidian` skill. Confirm via:
 
 - `scripts/recon.py` — Phase 1 engine. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>"`
 - `scripts/distiller_payload.py` — Phase 2.0 pre-distiller. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/distiller_payload.py --recon-report /tmp/recon.json --out /tmp/distiller_payload.json`
-- `scripts/bulk_writer.py` — Phase 3 bulk writer. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/bulk_writer.py --operations "<PATH_TO_OPS_JSON>"`
-- `scripts/linter.py` — Phase 4 validator. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/obsidian-injector/scripts/linter.py [--target "<TARGET>" | --operations "<PATH_TO_OPS_JSON>"] --hub "<HUB_NAME>"`
-- `scripts/templates.py` — markdown templates (template_spoke, patch_snippet).
+- `<COMMON_DIR>/bulk_writer.py` — Phase 3 bulk writer. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/hermes_common/bulk_writer.py --operations "<PATH_TO_OPS_JSON>"`
+- `<COMMON_DIR>/linter.py` — Phase 4 validator. Run via `execute_code`: `python3 ~/.hermes/skills/note-taking/hermes_common/linter.py [--target "<TARGET>" | --operations "<PATH_TO_OPS_JSON>"] --hub "<HUB_NAME>"`
+- `<COMMON_DIR>/templates.py` — markdown templates (template_spoke, patch_snippet).
 
 
 ## Ambient Discovery
