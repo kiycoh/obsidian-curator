@@ -6,14 +6,24 @@ import tempfile
 import datetime
 from pathlib import Path
 
+# --- hermes_common bootstrap (uniform across all hermes skills) ---
+import os, sys
+_p = os.path.dirname(os.path.abspath(__file__))
+while _p != os.path.dirname(_p) and not os.path.isdir(os.path.join(_p, "hermes_common")):
+    _p = os.path.dirname(_p)
+if _p not in sys.path:
+    sys.path.insert(0, _p)
+# --- end bootstrap ---
+
 # Add scripts directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 # Import modules to test
 import parse_distiller_output
 import validate_operations
-import templates
+from hermes_common import templates
 import distiller_payload
+
 
 
 class TestParseDistillerOutput(unittest.TestCase):
