@@ -206,7 +206,7 @@ Used to merge duplicate notes of the same name located in different folders acro
 ## Hard Stops
 - `recon.py` JSON > 200 concepts → mandatory partition via `distiller_payload.py` `--max-concepts`; never single-shot delegate.
 - Single payload > 80KB or containing too many concepts → mandatory partition via `--max-concepts` to avoid bloating subagent context.
-- Parallel batch > `max_concurrent_children` (default 30) → tool errors out rather than truncating; either shrink the batch or raise the config.
+- Parallel batch > `max_concurrent_children` (default 10) → tool errors out rather than truncating; either shrink the batch or raise the config.
 - Validator exits with code 2 ($\ge 10\%$ operations rejected) $\rightarrow$ abort batch immediately. Re-recon or upgrade the subagent model.
 - Distiller returns updates with `heading` values NOT present in the payload → abort batch and re-recon; indicates context-field truncation or model hallucination.
 - Subagent timeout (`child_timeout_seconds`, default 600s) → check `~/.hermes/logs/subagent-timeout-<session>-<timestamp>.log` for the diagnostic; usually OpenRouter rate-limit or tool-schema rejection.
@@ -215,4 +215,4 @@ Used to merge duplicate notes of the same name located in different folders acro
 ## Pitfalls & Shell Quoting
 - **Nested Quoting in f-strings**: When constructing python/bash execution strings, using `shell_quote(TARGET)` or similar helpers generates an already-quoted string. Do **NOT** wrap the `{shell_quote(...)}` block in extra single or double quotes (e.g. `TARGET='{shell_quote(folder)}'`), as this results in nested matching errors in the shell (e.g. `eval: unexpected EOF while looking for matching ...`). Use it as: `--substitute TARGET={shell_quote(folder)}`.
 - **recon.py stderr behaviour**: In JSON mode, `recon.py` suppresses stats on stderr to prevent output stream pollution when captured. Do NOT redirect stderr to a file (like `2>/tmp/recon.stderr`) in JSON mode as it creates a confusing empty file.
-- **hermes_tools.read_file line format**: `hermes_tools.read_file` returns file content prefixed with line numbers (`LINE|CONTENT`). To load subagent JSON files via Python or command-line, strip line numbers before `json.loads` or use shell commands like `terminal(f"cat {shell_quote(path)}")` instead.
+- **Reading files in Python vs Tooling**: `hermes_tools.read_file` returns content prefixed with line numbers (`LINE|CONTENT`), and `terminal(f"cat ...")` will truncate large outputs. When running Python code inside `execute_code`, you may use `terminal(f"cat ...")` for small files, but you must use Python's native `open(path, 'r')` or `Path(path).read_text()` if the file is large enough to truncate.
