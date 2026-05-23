@@ -4,16 +4,22 @@ You orchestrate the note-taking pipeline for the **Injector** (ingestion), the *
 
 ## Script & Configuration Paths
 Depending on the environment, the python script and skill root folder paths are:
+- **Common Shared Directory**:
+  - `<COMMON_DIR>`: `<NT>/hermes_common/` (where the shared `linter.py` and `bulk_writer.py` reside)
 - **Vault Deployment**:
-  - Injector & Refiner `<SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/scripts/`
-  - Injector & Refiner `<SKILL_ROOT>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/`
+  - Injector `<INJECTOR_SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/scripts/`
+  - Injector `<SKILL_ROOT>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/`
+  - Refiner `<REFINER_SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-refiner/scripts/`
+  - Refiner `<SKILL_ROOT>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-refiner/`
   - Dedup `<DEDUP_SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-dedup/scripts/`
 - **Skill Repository**:
-  - Injector & Refiner `<SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-injector/scripts/`
-  - Injector & Refiner `<SKILL_ROOT>`: `~/.hermes/skills/note-taking/obsidian-injector/`
+  - Injector `<INJECTOR_SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-injector/scripts/`
+  - Injector `<SKILL_ROOT>`: `~/.hermes/skills/note-taking/obsidian-injector/`
+  - Refiner `<REFINER_SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-refiner/scripts/`
+  - Refiner `<SKILL_ROOT>`: `~/.hermes/skills/note-taking/obsidian-refiner/`
   - Dedup `<DEDUP_SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-dedup/scripts/`
 
-- **Prompts directory** (both deployments): `<SKILL_ROOT>/prompts/`
+- **Prompts directory** (all deployments): `<SKILL_ROOT>/prompts/`
   Used by Router actions that need to read `distiller_prompt.txt`.
 
 Locate the active skill folder and prompts directory first (e.g. check if the vault contains `.hermes/` or use the user home fallback) before running scripts or reading template files.
@@ -46,13 +52,13 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
   * By default, the Router **must** run reconnaissance over the entire `<INBOX>` using `recon.py`:
     
     ```bash
-    python3 <SCRIPTS_DIR>/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>" \
+    python3 <INJECTOR_SCRIPTS_DIR>/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>" \
         > /tmp/recon.json
     ```
 
   * **Large Inbox / Truncation Fallback**: Only if the recon output is truncated (e.g. context limit exceeded or tool output cutoff) or too large to process, the Router **must** partition and process the inbox in sequential batches of **10 to 20 files** using the `--limit` and `--offset` flags on `recon.py` directly:
     ```bash
-    python3 <SCRIPTS_DIR>/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>" --limit 15 --offset 0 > /tmp/recon.json
+    python3 <INJECTOR_SCRIPTS_DIR>/recon.py --inbox "<INBOX>" --vault "<VAULT_ROOT>" --limit 15 --offset 0 > /tmp/recon.json
     ```
     *(Note: `recon.py` automatically sorts files alphabetically, supports pagination via --offset, and ignores any files already located in a `<INBOX>/done/` subfolder).*
 - **Phase 2.0 — Router Pre-distillation (Mechanical, no LLM)**:
@@ -60,12 +66,12 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
   * If the total concept count is high, the Router partitions the payload into smaller batches of ≤10 concepts each to prevent subagent context bloat:
     ```bash
     # Single-payload mode
-    python3 <SCRIPTS_DIR>/distiller_payload.py \
+    python3 <INJECTOR_SCRIPTS_DIR>/distiller_payload.py \
         --recon-report /tmp/recon.json \
         --out /tmp/distiller_payload.json
 
     # Partitioned mode (creates /tmp/distiller_payload_0.json, _1.json, etc.)
-    python3 <SCRIPTS_DIR>/distiller_payload.py \
+    python3 <INJECTOR_SCRIPTS_DIR>/distiller_payload.py \
         --recon-report /tmp/recon.json \
         --max-concepts 10 \
         --out /tmp/distiller_payload.json
@@ -75,7 +81,7 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
 - **Phase 2.1a — Single-batch delegation (Router → prep_delegation.py then delegate_task)**:
   * The Router runs `prep_delegation.py` via `execute_code` to prepare the exact task context:
     ```bash
-    python3 <SCRIPTS_DIR>/prep_delegation.py \
+    python3 <INJECTOR_SCRIPTS_DIR>/prep_delegation.py \
         --protocol <SKILL_ROOT>/prompts/distiller_prompt.txt \
         --payload /tmp/distiller_payload.json \
         --substitute TARGET="<TARGET>" \
@@ -88,13 +94,13 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
     ```
   * Once the subagent returns, the Router sanitizes the raw output file:
     ```bash
-    python3 <SCRIPTS_DIR>/parse_distiller_output.py \
+    python3 <INJECTOR_SCRIPTS_DIR>/parse_distiller_output.py \
         --in /tmp/distiller_output_0.txt \
         --out /tmp/distiller_output_0.json
     ```
   * The Router then runs the operations validator:
     ```bash
-    python3 <SCRIPTS_DIR>/validate_operations.py \
+    python3 <INJECTOR_SCRIPTS_DIR>/validate_operations.py \
         --operations /tmp/distiller_output_0.json \
         --payload /tmp/distiller_payload.json \
         --target "<TARGET>" \
@@ -105,7 +111,7 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
   * The Router compiles all generated partition files into a single delegation argument JSON using `prep_delegation.py`:
     ```bash
     # Example for 3 batches
-    python3 <SCRIPTS_DIR>/prep_delegation.py \
+    python3 <INJECTOR_SCRIPTS_DIR>/prep_delegation.py \
         --protocol <SKILL_ROOT>/prompts/distiller_prompt.txt \
         --payload /tmp/distiller_payload_0.json \
         --payload /tmp/distiller_payload_1.json \
@@ -122,7 +128,7 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
   * The Router merges all clean `"updates"` arrays into a single `/tmp/operations.json` file.
   * The Router then runs the validation script across the merged list of operations:
     ```bash
-    python3 <SCRIPTS_DIR>/validate_operations.py \
+    python3 <INJECTOR_SCRIPTS_DIR>/validate_operations.py \
         --operations /tmp/operations.json \
         --payload /tmp/distiller_payload_0.json \
         --payload /tmp/distiller_payload_1.json \
@@ -140,13 +146,13 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
 - **Phase 3 — Execute**:
   Mutate the files in the vault. We always write programmatically via the bulk writer to ensure consistent templating and validation:
   ```bash
-  python3 <SCRIPTS_DIR>/bulk_writer.py --operations "/tmp/operations.validated.json"
+  python3 <COMMON_DIR>/bulk_writer.py --operations "/tmp/operations.validated.json"
   ```
 
 - **Phase 4 — Validate & Cleanup**:
   Run `linter.py` to check YAML syntax, wikilinks, and 40-line atomicity for ONLY the modified/created notes:
   ```bash
-  python3 <SCRIPTS_DIR>/linter.py --operations "/tmp/operations.validated.json" --hub "<HUB_NAME>"
+  python3 <COMMON_DIR>/linter.py --operations "/tmp/operations.validated.json" --hub "<HUB_NAME>"
   ```
   *(Note: You can still run with `--target "<TARGET>"` to validate the entire folder if needed).*
 
@@ -161,16 +167,31 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
 Used to either **decouple** a monolithic note into Hub-and-Spoke nodes, or **reformat & enrich** lean, empty, or poorly tagged notes.
 
 - **Phase 1 — Note Inspection**:
-  - **Decouple Mode**: Parse the monolith note headings as candidate Spoke concepts.
-  - **Reformat & Enrich Mode**: Read the note's frontmatter and body structure. Check for empty contents or malformed YAML tags.
+  Run the inspection script to determine if we should decouple or reformat/enrich, and detect frontmatter issues:
+  ```bash
+  python3 <REFINER_SCRIPTS_DIR>/inspect_note.py --note "<PATH_TO_NOTE>" --out /tmp/inspect.json
+  ```
 - **Phase 2 — Structural Design**:
-  - **Decouple Mode**: Map the monolith H1 title as the main Hub and H2 headings as individual Spoke concepts.
-  - **Reformat & Enrich Mode**: Correct invalid YAML tags (must be lowercase, hyphen-separated, e.g. `intelligenza-artificiale`). If empty or too lean, use `web_search` and `web_extract` to retrieve standard definitions, formulas, and examples.
+  - **Decouple Mode**: Map the monolith H1 title as the main Hub and H2 headings as individual Spoke concepts. Build the decoupling operations file:
+    ```bash
+    python3 <REFINER_SCRIPTS_DIR>/split_monolith.py --note "<PATH_TO_NOTE>" --parent-folder "<PARENT_FOLDER>" --hub "<HUB_NAME>" --out /tmp/refiner_ops.json
+    ```
+  - **Reformat & Enrich Mode**: Correct invalid YAML tags (must be lowercase, hyphen-separated, e.g. `intelligenza-artificiale`). Use `normalize_frontmatter.py` to deterministically plan this, or write it directly:
+    ```bash
+    python3 <REFINER_SCRIPTS_DIR>/normalize_frontmatter.py --note "<PATH_TO_NOTE>" --out /tmp/refiner_ops.json
+    ```
+    If empty or too lean, the Router uses native `web_search` and `web_extract` tools directly to retrieve standard definitions, formulas, and examples for enrichment.
 - **Phase 3 — Execution**:
-  - **Decouple Mode**: Write all new Spokes first, then overwrite the monolith as a lean Hub index note listing all Spokes. For bulk writes, use `bulk_writer.py`.
-  - **Reformat & Enrich Mode**: Overwrite the target note with the updated YAML tags and enriched content.
+  - **Decouple Mode**: Apply the split operations:
+    ```bash
+    python3 <COMMON_DIR>/bulk_writer.py --operations /tmp/refiner_ops.json
+    ```
+  - **Reformat & Enrich Mode**: Overwrite the target note with the updated YAML tags and enriched content (either directly, or via `bulk_writer.py` using the generated operations file).
 - **Phase 4 — Validate**:
-  Run `linter.py` to verify note atomicity, wikilink referencing, and frontmatter parsing.
+  Run the common linter to verify note atomicity, wikilink referencing, and frontmatter parsing:
+  ```bash
+  python3 <COMMON_DIR>/linter.py --files "<PATH_TO_NOTE>" --hub "<HUB_NAME>"
+  ```
 
 ### 3. Obsidian Deduplication Workflow
 Used to merge duplicate notes of the same name located in different folders across the vault.
@@ -178,14 +199,24 @@ Used to merge duplicate notes of the same name located in different folders acro
 - **Phase 1 — Locate Duplicates**:
   Run the mechanical duplicate check script using `execute_code` (optionally targeting a specific subdirectory with `--folder`):
   ```bash
-  python3 <DEDUP_SCRIPTS_DIR>/find_duplicates.py --vault "<VAULT_ROOT>" [--folder "<SUBDIRECTORY_PATH>"]
+  python3 <DEDUP_SCRIPTS_DIR>/find_duplicates.py --vault "<VAULT_ROOT>" [--folder "<SUBDIRECTORY_PATH>"] > /tmp/dupes.json
   ```
 - **Phase 2 — Semantic Unification**:
-  Read the contents of each duplicate note. Select a single canonical destination path (e.g. the most relevant folder). Merge the contents smoothly: retain all unique definitions, formulas, and structural links, while unifying and cleaning up the YAML tags.
+  Gather the duplicate note contents into a single payload using the gather script:
+  ```bash
+  python3 <DEDUP_SCRIPTS_DIR>/gather_merge_payload.py --duplicates /tmp/dupes.json --out /tmp/merge_payload.json
+  ```
+  Read the merged payload, perform the semantic merge, select the canonical path, and plan the bulk writer operations (using `overwrite` for the merged note, and `delete` for the redundant files).
 - **Phase 3 — Execution & Cleanup**:
-  Write the unified content to the canonical path (using native tools or `bulk_writer.py`). Delete all obsolete duplicate files from the vault.
+  Write the unified content and delete duplicates via the bulk writer:
+  ```bash
+  python3 <COMMON_DIR>/bulk_writer.py --operations /tmp/dedup_ops.json
+  ```
 - **Phase 4 — Validate**:
-  Run `linter.py` to verify formatting, YAML validation, and maximum character length.
+  Run the common linter to verify formatting, YAML validation, and maximum character length:
+  ```bash
+  python3 <COMMON_DIR>/linter.py --files "<CANONICAL_PATH>" --hub "<HUB_NAME>"
+  ```
 
 ---
 
