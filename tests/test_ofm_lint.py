@@ -245,6 +245,27 @@ class TestOFMLintStructural(unittest.TestCase):
         r = ofm_lint(self._note("# T\n\nSome ==highlighted text"), stem="T")
         self.assertIn("unbalanced == highlight", r["violations"])
 
+    def test_inline_code_with_equals_no_false_positive(self):
+        """Inline `if x == y` must NOT trigger 'unbalanced == highlight'."""
+        r = ofm_lint(self._note("# T\n\nUse `if x == y` to compare."), stem="T")
+        eq_violations = [v for v in r["violations"] if "==" in v]
+        self.assertEqual(eq_violations, [],
+                         f"Inline code == should not trigger: {eq_violations}")
+
+    def test_inline_code_with_dollar_no_false_positive(self):
+        """Inline `$$` in code span must not trigger unbalanced math block."""
+        r = ofm_lint(self._note("# T\n\nThe delimiter `$$` starts a block."), stem="T")
+        math_violations = [v for v in r["violations"] if "$$" in v]
+        self.assertEqual(math_violations, [],
+                         f"Inline code $$ should not trigger: {math_violations}")
+
+    def test_inline_code_with_wikilink_no_false_positive(self):
+        """Inline `[[` in code span must not trigger unbalanced wikilink."""
+        r = ofm_lint(self._note("# T\n\nUse `[[note]]` syntax for links."), stem="T")
+        wl_violations = [v for v in r["violations"] if "wikilink" in v]
+        self.assertEqual(wl_violations, [],
+                         f"Inline code [[ should not trigger: {wl_violations}")
+
 
 if __name__ == "__main__":
     unittest.main()

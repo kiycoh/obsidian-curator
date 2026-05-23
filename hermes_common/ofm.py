@@ -69,6 +69,8 @@ def _balanced(body):
     issues = []
     # Strip fenced code blocks to avoid false positives on $$ / [[ inside code
     naked = FENCE_RE.sub("", body)
+    # Strip inline code spans (`...`) — e.g. `if x == y` would false-positive ==
+    naked = re.sub(r'`[^`\n]*`', '', naked)
     if naked.count("$$") % 2:
         issues.append("unbalanced $$ block")
     if naked.count("==") % 2:
