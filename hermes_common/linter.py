@@ -52,10 +52,10 @@ if __name__ == "__main__":
             print("Error: Either --target, --operations, or --files must be specified.")
         sys.exit(1)
 
-    files_to_check = [] # List of tuples: (path, op_type)
+    files_to_check = [] # List of tuples: (path, op_type, per_file_hub)
     if args.files:
         for f in args.files:
-            files_to_check.append((f, None))
+            files_to_check.append((f, None, None))
     elif args.operations:
         if not os.path.exists(args.operations):
             if args.format == "json":
@@ -71,7 +71,7 @@ if __name__ == "__main__":
                     continue
                 path = op.get("path")
                 if path and path.endswith('.md'):
-                    files_to_check.append((path, op.get("op")))
+                    files_to_check.append((path, op.get("op"), op.get("hub")))
         except Exception as e:
             if args.format == "json":
                 print(json.dumps({"error": f"Failed to parse operations JSON: {e}"}))
@@ -87,13 +87,14 @@ if __name__ == "__main__":
             sys.exit(1)
         for f in os.listdir(args.target):
             if f.endswith('.md'):
-                files_to_check.append((os.path.join(args.target, f), None))
+                files_to_check.append((os.path.join(args.target, f), None, None))
 
 
     results = {}
-    for path, op_type in files_to_check:
+    for path, op_type, per_file_hub in files_to_check:
+        effective_hub = args.hub or per_file_hub
         if os.path.exists(path):
-            errs = validate_note(path, args.hub, op_type)
+            errs = validate_note(path, effective_hub, op_type)
             if errs:
                 results[os.path.basename(path)] = errs
         else:

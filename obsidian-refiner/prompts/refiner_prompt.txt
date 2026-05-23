@@ -1,1 +1,1 @@
-/goal /obsidian-refiner --note "<TARGET_NOTE>" --parent-folder "<PARENT_FOLDER>" --hub "<HUB_NAME>"
+/goal /obsidian-refiner --folder "<TARGET_FOLDER>"

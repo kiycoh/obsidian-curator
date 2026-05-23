@@ -4,20 +4,16 @@ You orchestrate the note-taking pipeline for the **Injector** (ingestion), the *
 
 ## Script & Configuration Paths
 Depending on the environment, the python script and skill root folder paths are:
+- **Path Placeholders**:
+  - `<NT>`: `~/.hermes/skills/note-taking/` (Note-Taking repository root fallback, or `<VAULT_ROOT>/.hermes/skills/note-taking/` for active vault deployments).
 - **Common Shared Directory**:
   - `<COMMON_DIR>`: `<NT>/hermes_common/` (where the shared `linter.py` and `bulk_writer.py` reside)
-- **Vault Deployment**:
-  - Injector `<INJECTOR_SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/scripts/`
-  - Injector `<SKILL_ROOT>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-injector/`
-  - Refiner `<REFINER_SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-refiner/scripts/`
-  - Refiner `<SKILL_ROOT>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-refiner/`
-  - Dedup `<DEDUP_SCRIPTS_DIR>`: `<VAULT_ROOT>/.hermes/skills/note-taking/obsidian-dedup/scripts/`
 - **Skill Repository**:
-  - Injector `<INJECTOR_SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-injector/scripts/`
-  - Injector `<SKILL_ROOT>`: `~/.hermes/skills/note-taking/obsidian-injector/`
-  - Refiner `<REFINER_SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-refiner/scripts/`
-  - Refiner `<SKILL_ROOT>`: `~/.hermes/skills/note-taking/obsidian-refiner/`
-  - Dedup `<DEDUP_SCRIPTS_DIR>`: `~/.hermes/skills/note-taking/obsidian-dedup/scripts/`
+  - Injector `<INJECTOR_SCRIPTS_DIR>`: `<NT>/obsidian-injector/scripts/`
+  - Injector `<SKILL_ROOT>`: `<NT>/obsidian-injector/`
+  - Refiner `<REFINER_SCRIPTS_DIR>`: `<NT>/obsidian-refiner/scripts/`
+  - Refiner `<SKILL_ROOT>`: `<NT>/obsidian-refiner/`
+  - Dedup `<DEDUP_SCRIPTS_DIR>`: `<NT>/obsidian-dedup/scripts/`
 
 - **Prompts directory** (all deployments): `<SKILL_ROOT>/prompts/`
   Used by Router actions that need to read `distiller_prompt.txt`.
@@ -164,8 +160,34 @@ Used to ingest external source notes from an `<INBOX>` folder into a designated 
 
 
 ### 2. Obsidian Refiner Workflow
-Used to either **decouple** a monolithic note into Hub-and-Spoke nodes, or **reformat & enrich** lean, empty, or poorly tagged notes.
+Used to either **decouple** monolithic notes into Hub-and-Spoke nodes, or **reformat & enrich** lean, empty, or poorly tagged notes.
 
+#### A. Folder Batch Processing (Recommended)
+- **Phase 1 — Batch Triage & Deterministic Planning**:
+  Run the batch refiner script on the target folder to automatically inspect all notes, split monoliths, and normalize frontmatter tags:
+  ```bash
+  python3 <REFINER_SCRIPTS_DIR>/batch_refine.py --folder "<TARGET_FOLDER>" \
+      --det-out /tmp/refiner_ops.json \
+      --enrich-out /tmp/enrich_queue.json
+  ```
+  *(Note: This triages each note into decouple, reformat, enrich, or ok categories. It generates deterministic split/normalization operations and identifies notes needing semantic enrichment).*
+
+- **Phase 2 — Semantic Enrichment Queue**:
+  If `/tmp/enrich_queue.json` contains notes flagged for enrichment (e.g. empty or lean notes), the Router processes these notes. It uses native `web_search` and `web_extract` tools directly to retrieve definitions, equations, or examples, and writes/patches them.
+
+- **Phase 3 — Execution**:
+  Apply all deterministic triage operations via the bulk writer:
+  ```bash
+  python3 <COMMON_DIR>/bulk_writer.py --operations /tmp/refiner_ops.json
+  ```
+
+- **Phase 4 — Validate**:
+  Run the common linter to verify tag compliance, atomicity, and wikilink integrity:
+  ```bash
+  python3 <COMMON_DIR>/linter.py --operations /tmp/refiner_ops.json
+  ```
+
+#### B. Single-Note Manual Processing (Fallback / Direct target)
 - **Phase 1 — Note Inspection**:
   Run the inspection script to determine if we should decouple or reformat/enrich, and detect frontmatter issues:
   ```bash
@@ -176,7 +198,7 @@ Used to either **decouple** a monolithic note into Hub-and-Spoke nodes, or **ref
     ```bash
     python3 <REFINER_SCRIPTS_DIR>/split_monolith.py --note "<PATH_TO_NOTE>" --parent-folder "<PARENT_FOLDER>" --hub "<HUB_NAME>" --out /tmp/refiner_ops.json
     ```
-  - **Reformat & Enrich Mode**: Correct invalid YAML tags (must be lowercase, hyphen-separated, e.g. `intelligenza-artificiale`). Use `normalize_frontmatter.py` to deterministically plan this, or write it directly:
+  - **Reformat & Enrich Mode**: Correct invalid YAML tags (must be lowercase, hyphen-separated, e.g. `intelligenza-artificiale`). Use `normalize_frontmatter.py` to plan this:
     ```bash
     python3 <REFINER_SCRIPTS_DIR>/normalize_frontmatter.py --note "<PATH_TO_NOTE>" --out /tmp/refiner_ops.json
     ```
@@ -186,7 +208,7 @@ Used to either **decouple** a monolithic note into Hub-and-Spoke nodes, or **ref
     ```bash
     python3 <COMMON_DIR>/bulk_writer.py --operations /tmp/refiner_ops.json
     ```
-  - **Reformat & Enrich Mode**: Overwrite the target note with the updated YAML tags and enriched content (either directly, or via `bulk_writer.py` using the generated operations file).
+  - **Reformat & Enrich Mode**: Overwrite the target note with the updated YAML tags and enriched content (either directly, or via `<COMMON_DIR>/bulk_writer.py` using the generated operations file).
 - **Phase 4 — Validate**:
   Run the common linter to verify note atomicity, wikilink referencing, and frontmatter parsing:
   ```bash

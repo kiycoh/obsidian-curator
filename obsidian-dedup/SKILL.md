@@ -16,7 +16,7 @@ The Deduplication pipeline is used to find and resolve duplicate note files with
 
 This skill requires:
 - **`find_duplicates.py`** (executed via `execute_code`) to locate identical note basenames across the vault, optionally scoped using the `--folder` parameter.
-- **`web_search` & `web_extract`** (native tools or programmatically imported via `hermes_tools`) to verify facts, definitions, or correct formulas.
+- **`web_search` & `web_extract`** (native tools called directly by the model) to verify facts, definitions, or correct formulas.
 - **`write_file` & `patch`** (native file operation tools) to commit updates to the vault.
 
 ## Deduplication Workflow

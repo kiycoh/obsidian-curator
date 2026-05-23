@@ -1,25 +1,89 @@
 ---
 name: obsidian-refiner
-description: "Refinement & Restructure Pipeline — splits monolithic notes into atomic Hub-and-Spoke networks, and restructures/enriches lean, empty, or poorly formatted notes (especially YAML tags) using Obsidian Flavored Markdown (OFM) styling guidelines."
+description: "Refinement & Restructure Pipeline — processes an entire folder of notes: splits monolithic notes into atomic Hub-and-Spoke networks, normalizes YAML frontmatter, and enriches lean/empty notes using web search and OFM styling guidelines."
 ---
 
 # Obsidian Refiner — Refinement Pipeline
 
-The Refinement pipeline operates in two modes depending on the condition of the target note:
-1. **Decouple Mode (Decomposition)**: Applied to monolithic notes. Splits the monolith into an index-based Hub note and multiple atomic Spoke notes (target ~40 lines).
-2. **Reformat & Enrich Mode (Restructuring)**: Applied to notes that are empty, too lean (< 600 characters), or badly formatted (especially YAML frontmatter tags). Re-styles the note, corrects metadata schemas, and enriches content with authoritative definitions.
+The Refinement pipeline processes an entire `<TARGET_FOLDER>` of notes in batch.
+Each note is triaged into one of four categories and handled accordingly:
+
+| Category | Condition | Action |
+|---|---|---|
+| **Decouple** | Over size limits AND ≥ 2 H2 headings | Split into Hub + atomic Spokes |
+| **Reformat** | Normal size, has frontmatter tag issues | Deterministic YAML tag normalization |
+| **Enrich** | Empty or lean (< 600 chars) | Normalize tags + queue for LLM web enrichment |
+| **OK** | Well-formed, adequate content | Skip |
 
 ## Inputs
 
-- `<TARGET_NOTE>` — path to the note to refactor or reformat/enrich.
-- `<PARENT_FOLDER>` — parent folder where the new notes/re-formatted note will reside.
-- `<HUB_NAME>` — the primary Hub note that this note should link back to.
+- `<TARGET_FOLDER>` — folder containing notes to refine (processed recursively).
+- `<HUB_NAME>` (optional, in prompt) — override hub name for all decoupled notes. If omitted, the hub name is derived from each monolith's filename (e.g. `Backpropagation.md` → Hub: "Backpropagation").
 
 ## Required Tools
 
 This skill requires:
-- **`web_search` & `web_extract`** (native tools or programmatically imported via `hermes_tools`) to locate authoritative definitions, formulas, and academic context.
+- **`web_search` & `web_extract`** (native tools called directly by the model) for enriching lean notes.
 - **`write_file` & `patch`** (native file operation tools) to commit updates to the vault.
+
+## Pipeline Phases
+
+### Phase 1 — Discovery & Planning (`execute_code`)
+
+Run the batch triage + deterministic ops generator:
+```bash
+python3 <REFINER_SCRIPTS_DIR>/batch_refine.py --folder "<TARGET_FOLDER>"
+```
+
+This script:
+1. Iterates all `.md` files in `<TARGET_FOLDER>` (recursive)
+2. Runs `inspect()` on each note
+3. Triages into `decouple` / `reformat` / `enrich` / `ok`
+4. For `decouple`: generates split ops (Hub index + Spokes) via `build_ops()`
+5. For `reformat`: generates YAML normalization ops via `normalize()`
+6. For `enrich`: normalizes tags first, then queues for LLM
+
+**Outputs**:
+- `/tmp/deterministic_ops.json` — bulk_writer ops array (splits + normalizations)
+- `/tmp/enrich_queue.json` — list of `{path, title, char_count, is_empty}` for the Router
+
+**Dry-run mode** (triage only, no ops files):
+```bash
+python3 <REFINER_SCRIPTS_DIR>/batch_refine.py --folder "<TARGET_FOLDER>" --dry-run
+```
+
+### Phase 2 — Deterministic Execution (`execute_code`)
+
+Apply all mechanical operations:
+```bash
+python3 <COMMON_DIR>/bulk_writer.py --operations /tmp/deterministic_ops.json
+```
+
+### Phase 3 — Semantic Enrichment (Router/LLM)
+
+Read `/tmp/enrich_queue.json`. For each entry:
+1. `web_search` the note title + domain context (e.g. `"Backpropagation reti neurali"`).
+2. `web_extract` the best authoritative URLs; pull definitions, formulas, examples.
+3. Synthesize a formal Italian body, **preserving** all existing factual content (anti-deletion policy). Set `AI: true` in frontmatter.
+4. Append an `overwrite` op to `/tmp/enrich_ops.json`.
+
+Then execute enrichment writes:
+```bash
+python3 <COMMON_DIR>/bulk_writer.py --operations /tmp/enrich_ops.json
+```
+
+### Phase 4 — Validation (`execute_code`)
+
+Lint all modified files:
+```bash
+python3 <COMMON_DIR>/linter.py --operations /tmp/deterministic_ops.json
+python3 <COMMON_DIR>/linter.py --operations /tmp/enrich_ops.json
+```
+
+> [!NOTE]
+> The `--hub` flag is optional. When omitted, the linter reads each operation's `hub` field directly from the ops JSON for per-file wikilink validation. This supports batch mode with multiple distinct hubs.
+
+---
 
 ## Differences from obsidian-injector
 
@@ -47,30 +111,10 @@ Hub rewrites use full `write_file`, never `patch`. This is the one case
 where the Router overwrites existing content. The original monolith body
 is preserved in the Spokes; only the Hub structure changes.
 
-## External Enrichment (Optional)
+## External Enrichment (`web_search` + `web_extract`)
 
-If a concept within the target note is underspecified or requires formal formulas, standard academic definitions, or illustrative examples to be fully usable:
-- **Do** leverage the native `web_search` and `web_extract` tools to retrieve authoritative reference materials.
-- **Do not** introduce speculative or unverified claims. Ensure all fetched information is factually accurate, structured for academic readability, and integrated cleanly into the Spoke's Italian body text.
-
----
-
-## Scripts & Tools
-
-The mechanical operations of the Refiner are driven by scripts inside `<REFINER_SCRIPTS_DIR>`:
-- `scripts/inspect_note.py` — Phase 1 tool. Diagnoses note size, metrics, and frontmatter/tag formatting. Run via `execute_code`: `python3 <REFINER_SCRIPTS_DIR>/inspect_note.py --note "<PATH_TO_NOTE>" [--out "<OUT_JSON>"]`
-- `scripts/split_monolith.py` — Phase 2/3 Decouple mode planner. Parses H2 headings and generates operations for the bulk writer: `python3 <REFINER_SCRIPTS_DIR>/split_monolith.py --note "<PATH_TO_NOTE>" --parent-folder "<PARENT_FOLDER>" --hub "<HUB_NAME>" --out "<OUT_OPS_JSON>"`
-- `scripts/normalize_frontmatter.py` — Phase 3 Reformat mode planner. Deterministically normalizes frontmatter tags: `python3 <REFINER_SCRIPTS_DIR>/normalize_frontmatter.py --note "<PATH_TO_NOTE>" [--write | --out "<OUT_OPS_JSON>"]`
-- `<COMMON_DIR>/bulk_writer.py` — Phase 3 bulk mutation executor. Applied to decoupling splits or frontmatter normalizations.
-- `<COMMON_DIR>/linter.py` — Phase 4 validator. Checks for wikilinks and atomicity constraints.
-
----
-
-## Web Enrichment (`web_search` + `web_extract`)
-
-Invoked **only in Reformat & Enrich mode**, and only when `inspect_note.py` reports the
-target as empty, lean (`is_lean: true`, < 600 chars), or when anti-deletion rule #3
-requires verifying a definition/formula before rewriting it. Decouple mode and
+Invoked **only in Enrich mode** (Phase 3), and only when `batch_refine.py` queues
+the note as lean (`is_lean: true`, < 600 chars) or empty. Decouple mode and
 deterministic YAML normalization never call the web.
 
 ### Tool contract (native Hermes `web` toolset)
@@ -88,12 +132,17 @@ is unavailable, **degrade gracefully**: fall back to `web_search` snippets for t
 still apply the deterministic Reformat fixes (frontmatter normalization, OFM restyle). Never
 block a reformat because extraction is unconfigured.
 
-### Phase 2 flow (Reformat & Enrich)
-1. `web_search` the note title + domain context (e.g. `"Backpropagation reti neurali"`).
-2. `web_extract` the best authoritative URLs; pull definitions, formulas, examples.
-3. Synthesize a formal Italian body, **preserving** all existing factual content
-   (anti-deletion policy). Set `AI: true` in frontmatter.
-4. Validate via `<COMMON_DIR>/linter.py`.
+---
+
+## Scripts & Tools
+
+The mechanical operations of the Refiner are driven by scripts inside `<REFINER_SCRIPTS_DIR>`:
+- `scripts/batch_refine.py` — Phase 1 orchestrator. Run via `execute_code`: `python3 <REFINER_SCRIPTS_DIR>/batch_refine.py --folder "<TARGET_FOLDER>" [--dry-run]`
+- `scripts/inspect_note.py` — Single-note diagnostic (imported by `batch_refine.py`). Run standalone via: `python3 <REFINER_SCRIPTS_DIR>/inspect_note.py --note "<PATH_TO_NOTE>" [--out "<OUT_JSON>"]`
+- `scripts/split_monolith.py` — Decouple mode planner (imported by `batch_refine.py`). Run standalone via: `python3 <REFINER_SCRIPTS_DIR>/split_monolith.py --note "<PATH_TO_NOTE>" --parent-folder "<PARENT_FOLDER>" --hub "<HUB_NAME>" --out "<OUT_OPS_JSON>"`
+- `scripts/normalize_frontmatter.py` — YAML tag normalizer (imported by `batch_refine.py`). Run standalone via: `python3 <REFINER_SCRIPTS_DIR>/normalize_frontmatter.py --note "<PATH_TO_NOTE>" [--write | --out "<OUT_OPS_JSON>"]`
+- `<COMMON_DIR>/bulk_writer.py` — Phase 2/3 bulk mutation executor.
+- `<COMMON_DIR>/linter.py` — Phase 4 validator. Supports per-op hub fallback when `--hub` is omitted.
 
 ---
 
@@ -159,11 +208,16 @@ graph TD
 ---
 
 ## Pitfalls
-
+- **Atomicity** — if a Spoke would exceed 40 lines, split further (sub-Spoke or sub-section). Do not loosen the limit.
+- **JSON Parsing in execute_code** — `read_file` returns content prefixed with line numbers (`LINE|CONTENT`). When reading ops or queue JSONs in Python, use `terminal(f'cat {path}')` or strip the line prefixes before `json.loads()` to avoid `JSONDecodeError`.
+- **Enrichment Timeouts** — Heavy web enrichment tasks can trigger subagent timeouts (600s). If the `enrich_queue.json` is large, partition the tasks into smaller batches (e.g., 3-5 notes per delegation) to ensure completion.
 - **Spoke linkback** — every Spoke must contain `[[Hub Title]]` in the
-  body (not frontmatter). The Phase 3 validator enforces this.
+  body (not frontmatter). The Phase 4 validator enforces this.
 - **No orphans** — never create a Spoke without updating the Hub's index.
   Order operations: write all Spokes first, then rewrite the Hub last with
   the complete Spoke list.
 - **Atomicity** — if a Spoke would exceed 40 lines, split further (sub-Spoke
   or sub-section). Do not loosen the limit.
+- **Enrich + bad tags overlap** — a lean note may also have malformed YAML tags.
+  `batch_refine.py` handles this by normalizing tags deterministically first,
+  then queuing the note for LLM enrichment. Both actions are applied.
