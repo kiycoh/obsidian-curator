@@ -55,6 +55,48 @@ If a concept within the target note is underspecified or requires formal formula
 
 ---
 
+## Scripts & Tools
+
+The mechanical operations of the Refiner are driven by scripts inside `<REFINER_SCRIPTS_DIR>`:
+- `scripts/inspect_note.py` — Phase 1 tool. Diagnoses note size, metrics, and frontmatter/tag formatting. Run via `execute_code`: `python3 <REFINER_SCRIPTS_DIR>/inspect_note.py --note "<PATH_TO_NOTE>" [--out "<OUT_JSON>"]`
+- `scripts/split_monolith.py` — Phase 2/3 Decouple mode planner. Parses H2 headings and generates operations for the bulk writer: `python3 <REFINER_SCRIPTS_DIR>/split_monolith.py --note "<PATH_TO_NOTE>" --parent-folder "<PARENT_FOLDER>" --hub "<HUB_NAME>" --out "<OUT_OPS_JSON>"`
+- `scripts/normalize_frontmatter.py` — Phase 3 Reformat mode planner. Deterministically normalizes frontmatter tags: `python3 <REFINER_SCRIPTS_DIR>/normalize_frontmatter.py --note "<PATH_TO_NOTE>" [--write | --out "<OUT_OPS_JSON>"]`
+- `<COMMON_DIR>/bulk_writer.py` — Phase 3 bulk mutation executor. Applied to decoupling splits or frontmatter normalizations.
+- `<COMMON_DIR>/linter.py` — Phase 4 validator. Checks for wikilinks and atomicity constraints.
+
+---
+
+## Web Enrichment (`web_search` + `web_extract`)
+
+Invoked **only in Reformat & Enrich mode**, and only when `inspect_note.py` reports the
+target as empty, lean (`is_lean: true`, < 600 chars), or when anti-deletion rule #3
+requires verifying a definition/formula before rewriting it. Decouple mode and
+deterministic YAML normalization never call the web.
+
+### Tool contract (native Hermes `web` toolset)
+- `web_search(query)` — ranked results via the configured `web.search_backend`. Responses
+  carry a success envelope; on `{"success": false}` or empty results, **do not fabricate** —
+  proceed with the note's existing content plus the deterministic Reformat fixes only.
+- `web_extract(url[, ...])` — readable content from one or more URLs via `web.extract_backend`.
+  Prefer extracting the top 1–3 authoritative results (official docs, papers, standards)
+  over relying on search snippets.
+
+### Backend requirement (hard)
+`web_extract` needs an extract-capable backend: `firecrawl`, `tavily`, `exa`, or `parallel`.
+`searxng` is **search-only** and returns a "search-only backend" error on extract. If extract
+is unavailable, **degrade gracefully**: fall back to `web_search` snippets for the body and
+still apply the deterministic Reformat fixes (frontmatter normalization, OFM restyle). Never
+block a reformat because extraction is unconfigured.
+
+### Phase 2 flow (Reformat & Enrich)
+1. `web_search` the note title + domain context (e.g. `"Backpropagation reti neurali"`).
+2. `web_extract` the best authoritative URLs; pull definitions, formulas, examples.
+3. Synthesize a formal Italian body, **preserving** all existing factual content
+   (anti-deletion policy). Set `AI: true` in frontmatter.
+4. Validate via `<COMMON_DIR>/linter.py`.
+
+---
+
 ## Obsidian Flavored Markdown (OFM) Styling Instructions
 
 Notes must be created and edited using valid Obsidian Flavored Markdown. This section outlines the structural syntax extensions to be utilized:
