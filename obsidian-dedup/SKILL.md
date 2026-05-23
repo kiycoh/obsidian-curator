@@ -24,14 +24,25 @@ This skill requires:
 - **Phase 1 — Locate Duplicates**:
   Run the duplicate locator script using `execute_code`:
   ```bash
-  python3 ~/.hermes/skills/note-taking/obsidian-dedup/scripts/find_duplicates.py --vault "<VAULT_ROOT>" [--folder "<SUBDIRECTORY_PATH>"]
+  python3 ~/.hermes/skills/note-taking/obsidian-dedup/scripts/find_duplicates.py --vault "<VAULT_ROOT>" [--folder "<SUBDIRECTORY_PATH>"] > /tmp/dupes.json
+  ```
+- **Phase 1→2 Bridge — Gather Payload**:
+  Bundle all duplicate note contents into a single payload using the gather script:
+  ```bash
+  python3 ~/.hermes/skills/note-taking/obsidian-dedup/scripts/gather_merge_payload.py --duplicates /tmp/dupes.json --out /tmp/merge_payload.json
   ```
 - **Phase 2 — Semantic Unification**:
-  Read each duplicate note's content. Select a single canonical target path (usually the most relevant subdirectory). Integrate all facts, definitions, and formatting from the duplicates into a single, cohesive canonical note body without losing technical details or references.
+  Read `/tmp/merge_payload.json` in one shot. Select a single canonical target path (usually the most relevant subdirectory). Integrate all facts, definitions, and formatting from the duplicates into a single, cohesive canonical note body without losing technical details or references. Plan bulk writer operations: one `overwrite` operation for the canonical note, and one `delete` operation per obsolete duplicate file.
 - **Phase 3 — Execution & Cleanup**:
-  Write the merged body to the canonical file path. Delete all obsolete duplicate files from the vault.
+  Apply the plan via the bulk writer:
+  ```bash
+  python3 ~/.hermes/skills/note-taking/hermes_common/bulk_writer.py --operations /tmp/dedup_ops.json
+  ```
 - **Phase 4 — Validate**:
-  Run `linter.py` to ensure the merged note meets atomicity (max 6000 chars), YAML frontmatter, and link rules.
+  Run the common linter to ensure the merged note meets atomicity, YAML frontmatter, and link rules:
+  ```bash
+  python3 ~/.hermes/skills/note-taking/hermes_common/linter.py --files "<CANONICAL_PATH>" --hub "<HUB_NAME>"
+  ```
 
 ## Content Preservation & Deletion Rules
 
