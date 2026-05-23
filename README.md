@@ -9,14 +9,16 @@ Hermes is an automated note-taking orchestration toolset designed to manage, ing
 This repository is organized into self-contained modular components representing different pipelines and helper utilities:
 
 ```text
+├── hermes_common/               # Shared package (linter, bulk_writer, templates, etc.)
 ├── obsidian/                    # Core Obsidian vault integration & cli bindings
 │   └── SKILL.md                 # Basic configuration & vault resolution rules
 ├── obsidian-injector/           # Ingestion pipeline from inbox to target vault
 │   ├── prompts/                 # Context prompts for distillation
-│   ├── scripts/                 # Python scripts for recon, payload packaging, and writing
+│   ├── scripts/                 # Python scripts for recon, payload packaging, etc.
 │   ├── SKILL.md                 # Configuration & setup details
 │   └── README.md                # Sub-component documentation
 ├── obsidian-refiner/            # Monolith decoupling & note restructuring pipeline
+│   ├── scripts/                 # Inspection, split monolithic planning, etc.
 │   ├── templates/               # Standard curation layouts
 │   └── SKILL.md                 # Curation guidelines & styling instructions
 ├── obsidian-dedup/              # Duplicate note resolver
@@ -73,7 +75,7 @@ python3 obsidian-injector/scripts/validate_operations.py \
     --out /tmp/operations.validated.json
 
 # Execute bulk write updates to vault
-python3 obsidian-injector/scripts/bulk_writer.py \
+python3 hermes_common/bulk_writer.py \
     --operations /tmp/operations.validated.json
 ```
 
