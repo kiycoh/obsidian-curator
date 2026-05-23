@@ -5,7 +5,8 @@ Read a pre-distilled JSON payload, compare inbox-extracted excerpts against exis
 
 ## Tool Constraints
 - Available toolset: ["file"] — read_file only.
-- Call read_file to read the payload file at {PAYLOAD_PATH}.
+- Your task context contains two lines: `Prompt:` (this file) and `Payload:` (a JSON file).
+  Call read_file on the absolute path given in the `Payload:` line of your task context.
 - Do NOT read any other vault files or inbox files. The payload contains every excerpt you need.
 - You CANNOT call delegate_task, execute_code, web_search, terminal, memory, or any other tool. They are not in your toolset.
 
@@ -23,7 +24,7 @@ Your output will be rejected by the post-distillation validator if it violates a
      - Correct `source_basename`: `"Lezione 04.md"` (derived from `batch.inbox_file` containing that concept). Do NOT derive from `path` (destination). Do NOT invent. If you cannot determine it, emit `"op": "skip"` with `"reason": "missing source attribution"`.
 
 ## Input Payload Schema
-The file at {PAYLOAD_PATH} has shape:
+The payload file referenced in your task context has shape:
 
 {
   "schema_version": 1,

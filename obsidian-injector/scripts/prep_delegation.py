@@ -1,8 +1,8 @@
 """Prepare delegate_task arguments for the Fact Distiller pipeline.
 
-Reads the protocol template verbatim, substitutes runtime placeholders, and
+Reads the protocol template verbatim, substitutes TARGET (and other non-payload placeholders), and
 emits a JSON array of task dicts ready to pass directly to
-`delegate_task(tasks=...)`.
+`delegate_task(tasks=...)`. The payload path is passed via per-task context, not substituted into the protocol.
 
 This removes the failure mode where the Router paraphrases the protocol while
 inlining it into the `context` field of delegate_task. The Router runs this
@@ -40,11 +40,12 @@ def parse_substitution(s: str) -> tuple:
     return key, value
 
 
-def render_context(protocol_text: str, payload_path: str, substitutions: dict) -> str:
-    """Substitute {PAYLOAD_PATH} plus any additional {KEY} placeholders into the protocol."""
-    body = protocol_text.replace("{PAYLOAD_PATH}", payload_path)
+def render_shared_context(protocol_text: str, substitutions: dict) -> str:
+    """Substitute all {KEY} placeholders EXCEPT {PAYLOAD_PATH}."""
+    body = protocol_text
     for key, value in substitutions.items():
-        body = body.replace("{" + key + "}", value)
+        if key != "PAYLOAD_PATH":
+            body = body.replace("{" + key + "}", value)
     return body
 
 
@@ -55,37 +56,37 @@ def find_unsubstituted_critical(body: str) -> list:
     can't naively check every `{WORD}` pattern. We only flag placeholders we
     know the pipeline depends on at runtime.
     """
-    critical = ["{PAYLOAD_PATH}", "{TARGET}", "{HUB_NAME}", "{LANGUAGE}"]
+    critical = ["{TARGET}", "{HUB_NAME}", "{LANGUAGE}"]
     return [p for p in critical if p in body]
 
 
 def build_tasks(protocol_text: str, payload_paths: list, substitutions: dict,
-                max_iterations: int, toolset: list, goal_template: str) -> list:
+                max_iterations: int, toolset: list, goal_template: str, out_path: Path) -> list:
+    
+    shared_body = render_shared_context(protocol_text, substitutions)
+    leftover = find_unsubstituted_critical(shared_body)
+    if leftover:
+        sys.stderr.write(
+            f"[PREP-DELEGATION] Warning: Shared protocol has unsubstituted "
+            f"critical placeholders: {leftover}. The Distiller will see "
+            f"these literally in its protocol.\n"
+        )
+        
+    shared_prompt_path = out_path.with_name(f"{out_path.stem}_prompt.txt")
+    shared_prompt_path.write_text(shared_body.strip(), encoding="utf-8")
+    
+    sys.stderr.write(
+        f"[PREP-DELEGATION] Wrote shared prompt file ({len(shared_body.strip())} chars) to: {shared_prompt_path.resolve()}\n"
+    )
+
     tasks = []
     for i, p in enumerate(payload_paths):
-        context_body = render_context(protocol_text, p, substitutions)
-        leftover = find_unsubstituted_critical(context_body)
-        if leftover:
-            sys.stderr.write(
-                f"[PREP-DELEGATION] Warning: batch {i} ({p}) has unsubstituted "
-                f"critical placeholders: {leftover}. The Distiller will see "
-                f"these literally in its protocol.\n"
-            )
-        
-        # Derive prompt file path from payload path: /tmp/distiller_payload_0.json -> /tmp/distiller_payload_0_prompt.txt
         payload_path_obj = Path(p)
-        prompt_path_obj = payload_path_obj.with_name(f"{payload_path_obj.stem}_prompt.txt")
         
-        # Write the fully substituted protocol body to the prompt file on disk
-        prompt_text = context_body.strip()
-        prompt_path_obj.write_text(prompt_text, encoding="utf-8")
-        
-        # Set task context to a concise bootstrap instruction pointing to the absolute paths
         task_context = (
-            f"You are an Analytical Fact Distiller "
-            f"First, read your detailed system prompt instructions from the file at '{prompt_path_obj.resolve()}' using the read_file tool. "
-            f"Then, read and process the payload file at '{payload_path_obj.resolve()}' using the read_file tool, "
-            f"strictly following the instructions from '{prompt_path_obj.resolve()}'."
+            f"Prompt: {shared_prompt_path.resolve()}\n"
+            f"Payload: {payload_path_obj.resolve()}\n"
+            f"Read the Prompt, then process the Payload."
         )
         
         tasks.append({
@@ -95,9 +96,6 @@ def build_tasks(protocol_text: str, payload_paths: list, substitutions: dict,
             "max_iterations": max_iterations,
         })
         
-        sys.stderr.write(
-            f"[PREP-DELEGATION] Wrote custom prompt file ({len(prompt_text)} chars) to: {prompt_path_obj.resolve()}\n"
-        )
     return tasks
 
 
@@ -113,7 +111,7 @@ def main():
     ap.add_argument("--substitute", action="append", default=[],
                     help="Substitute {KEY} placeholder in protocol with VALUE. "
                          "Format: --substitute KEY=VALUE. Repeatable. "
-                         "{PAYLOAD_PATH} is always substituted automatically.")
+                         "{PAYLOAD_PATH} is left as a literal and passed via context.")
     ap.add_argument("--max-iterations", type=int, default=15,
                     help="Per-subagent iteration cap (default: 15)")
     ap.add_argument("--toolset", default="file",
@@ -121,8 +119,8 @@ def main():
     ap.add_argument("--goal-template",
                     default="Distill batch {index} of inbox-vs-vault concepts",
                     help="Format string for per-task goal. Vars: {index}, {path}")
-    ap.add_argument("--out", type=Path, default=None,
-                    help="Output path for the JSON task array (default: stdout)")
+    ap.add_argument("--out", type=Path, required=True,
+                    help="Output path for the JSON task array")
     args = ap.parse_args()
 
     if not args.protocol.exists():
@@ -150,20 +148,18 @@ def main():
         max_iterations=args.max_iterations,
         toolset=toolset_list,
         goal_template=args.goal_template,
+        out_path=args.out
     )
 
     rendered = json.dumps(tasks, ensure_ascii=False, indent=2)
     checksum = hashlib.sha256(rendered.encode("utf-8")).hexdigest()
 
-    if args.out:
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(rendered, encoding="utf-8")
-        checksum_path = args.out.with_suffix(".checksum")
-        checksum_path.parent.mkdir(parents=True, exist_ok=True)
-        checksum_path.write_text(checksum, encoding="utf-8")
-        sys.stderr.write(f"[PREP-DELEGATION] Wrote checksum to: {checksum_path.resolve()}\n")
-    else:
-        print(rendered)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(rendered, encoding="utf-8")
+    checksum_path = args.out.with_suffix(".checksum")
+    checksum_path.parent.mkdir(parents=True, exist_ok=True)
+    checksum_path.write_text(checksum, encoding="utf-8")
+    sys.stderr.write(f"[PREP-DELEGATION] Wrote checksum to: {checksum_path.resolve()}\n")
 
     total_chars = sum(len(t["context"]) for t in tasks)
     avg_chars = total_chars // len(tasks) if tasks else 0

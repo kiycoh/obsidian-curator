@@ -27,13 +27,13 @@ You can dynamically choose which workflow to activate based on the target files 
 | Action                               | Who      | How                                  |
 |--------------------------------------|----------|--------------------------------------|
 | Extract concepts & check collisions   | Router   | execute_code (Python scripts)        |
-| Compare inbox-vs-vault concepts      | Distiller subagent | delegate_task with custom prompt + payload pointers on disk (2 read_file calls: one for prompt, one for payload) |
+| Compare inbox-vs-vault concepts      | Distiller subagent | delegate_task with a single shared rendered prompt file + per-task payload pointer (2 read_file calls: one for prompt, one for payload) |
 | Decide enrich/create/skip/reformat   | Router   | internal reasoning                   |
 | Generate markdown body per write     | Router   | internal reasoning                   |
 | Execute write_file / patch / move    | Router   | direct file-tool primitives          |
 | Validate written files               | Router   | execute_code (Python static linter)  |
 
-**Never** use subagents for routine extraction or writing files. Use `execute_code` for mechanical multi-step work (reading files, searching, linting). Delegate the inbox-vs-vault concept comparison to Distiller subagents via pre-distilled payload and custom prompt files on disk (one read_file call on the generated prompt file, and one read_file call on the payload file). Partition large payloads into batches at the `distiller_payload.py` `--limit`/`--offset` stage rather than at the inbox stage.
+**Never** use subagents for routine extraction or writing files. Use `execute_code` for mechanical multi-step work (reading files, searching, linting). Delegate the inbox-vs-vault concept comparison to Distiller subagents via pre-distilled payload and a single shared rendered prompt file on disk (one read_file call on the generated prompt file, and one read_file call on the payload file). Partition large payloads into batches at the `distiller_payload.py` `--limit`/`--offset` stage rather than at the inbox stage.
 
 ---
 
