@@ -24,9 +24,10 @@ import validate_operations
 from hermes_common import templates
 import distiller_payload
 
-# Import dedup finder
+# Import dedup finder and gather payload
 sys.path.insert(0, os.path.join(_p, "obsidian-dedup", "scripts"))
 import find_duplicates
+import gather_merge_payload
 
 
 
@@ -344,6 +345,26 @@ class TestFindDuplicates(unittest.TestCase):
         # Verify "Word form" is grouped
         self.assertIn("Word form", dupes)
         self.assertEqual(set(dupes["Word form"]), {str(f3.resolve()), str(f4.resolve())})
+
+    def test_gather_payload_with_dates(self):
+        # Create a duplicate with frontmatter date
+        f1 = self.sub1 / "Date Note.md"
+        f1.write_text("---\nlast modified: 2026-05-23\ntags:\n  - test\n---\nBody 1", encoding="utf-8")
+        
+        f2 = self.sub2 / "Date Note.md"
+        f2.write_text("---\nlast modified: 2026-05-23\ntags:\n  - test\n---\nBody 2", encoding="utf-8")
+        
+        dupes = find_duplicates.find_duplicates(str(self.vault))
+        self.assertIn("Date Note", dupes)
+        
+        payload = gather_merge_payload.build(dupes)
+        
+        # This will raise TypeError if datetime.date is not JSON serializable
+        serialized = json.dumps(payload, default=str)
+        deserialized = json.loads(serialized)
+        
+        self.assertEqual(len(deserialized["groups"]), 1)
+        self.assertEqual(deserialized["groups"][0]["basename"], "Date Note")
 
 
 if __name__ == "__main__":

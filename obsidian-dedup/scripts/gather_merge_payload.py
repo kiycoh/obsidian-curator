@@ -41,5 +41,5 @@ if __name__ == "__main__":
         print(json.dumps(dupes)); sys.exit(1)
     payload = build(dupes)
     with open(a.out, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
+        json.dump(payload, f, ensure_ascii=False, indent=2, default=str)
     print(f"[MERGE-PAYLOAD] {len(payload['groups'])} duplicate groups -> {a.out}", file=sys.stderr)
