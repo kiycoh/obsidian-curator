@@ -351,6 +351,9 @@ def main():
     ap.add_argument("--max-concepts", type=int, default=7,
                     help="Partition output into multiple files, each with ≤N concepts. "
                          "Requires --out. Output files are <out_stem>_<i><out_suffix>.")
+    ap.add_argument("--max-batches", type=int, default=None,
+                    help="Limit the number of partition files generated to at most N. "
+                         "Only applied when --max-concepts is set.")
     ap.add_argument("--out", type=Path, default=None,
                     help="Output path for payload JSON (default: stdout). "
                          "Required when --max-concepts is set.")
@@ -375,7 +378,9 @@ def main():
     if args.max_concepts is not None:
         # Partition mode: bin-pack and emit numbered files.
         chunks = partition_by_concepts(payload, args.max_concepts)
-        total_concepts = sum(len(b["concepts"]) for b in payload["batches"])
+        if args.max_batches is not None:
+            chunks = chunks[:args.max_batches]
+        total_concepts = sum(len(b["concepts"]) for chunk in chunks for b in chunk["batches"])
         for i, chunk in enumerate(chunks):
             out_path = out_path_for_partition(args.out, i)
             rendered = json.dumps(chunk, ensure_ascii=False, indent=2)

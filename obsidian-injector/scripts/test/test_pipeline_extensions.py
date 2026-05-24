@@ -282,7 +282,7 @@ class TestValidateOperations(unittest.TestCase):
         self.assertIn("contains or points to a forbidden inbox directory segment", rejected[0]["reason"])
 
     def test_coercion_write_to_patch(self):
-        # 1. Coerce write to patch if path exists on disk
+        # 1. Coerce write to patch if path exists on disk (with collision in payload)
         # target / "Backpropagation.md" exists, so write should be coerced to patch.
         ops = [
             {
@@ -297,6 +297,28 @@ class TestValidateOperations(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(len(validated), 1)
         self.assertEqual(validated[0]["op"], "patch")
+
+        # 1b. Coerce write to patch if path exists on disk but has NO collision in payload
+        # Create an untracked existing file in the target
+        untracked_file = self.target / "Adam Optimizer.md"
+        untracked_file.write_text("Existing Adam content", encoding="utf-8")
+        ops_untracked = [
+            {
+                "heading": "Adam Optimizer",
+                "op": "write",
+                "path": str(untracked_file),
+                "source_basename": "Lezione 04.md",
+                "snippet": "Coerced untracked write to patch"
+            }
+        ]
+        exit_code, validated, rejected = self.run_validator(ops_untracked)
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(len(validated), 1)
+        self.assertEqual(validated[0]["op"], "patch")
+        
+        # Clean up untracked file
+        if untracked_file.exists():
+            untracked_file.unlink()
 
         # 2. Coerce patch to write if path does NOT exist on disk
         # target / "Adam Optimizer.md" does not exist, so patch should be coerced to write.
@@ -402,6 +424,56 @@ class TestFindDuplicates(unittest.TestCase):
         # Verify "Word form" is grouped
         self.assertIn("Word form", dupes)
         self.assertEqual(set(dupes["Word form"]), {str(f3.resolve()), str(f4.resolve())})
+
+    def test_find_duplicates_with_leading_numbers_and_typos(self):
+        # Create "5. L'ambiente e le sue propietà" and "L'ambiente e le sue proprietà"
+        f1 = self.sub1 / "5. L'ambiente e le sue propietà.md"
+        f1.write_text("content 1", encoding="utf-8")
+        f2 = self.sub2 / "L'ambiente e le sue proprietà.md"
+        f2.write_text("content 2", encoding="utf-8")
+
+        # Create "02. La cellula" and "2. La cellula"
+        f3 = self.sub1 / "02. La cellula.md"
+        f3.write_text("content 3", encoding="utf-8")
+        f4 = self.sub2 / "2. La cellula.md"
+        f4.write_text("content 4", encoding="utf-8")
+
+        # Create date files that should not be duplicates
+        f5 = self.sub1 / "2026-05-24.md"
+        f5.write_text("content 5", encoding="utf-8")
+        f6 = self.sub2 / "2025-05-24.md"
+        f6.write_text("content 6", encoding="utf-8")
+
+        # Create two identical date files that should be duplicates
+        f7 = self.sub1 / "2026-05-25.md"
+        f7.write_text("content 7", encoding="utf-8")
+        f8 = self.sub2 / "2026-05-25.md"
+        f8.write_text("content 8", encoding="utf-8")
+
+        # Create non-duplicates with different acronyms (e.g. "Metodologia AAII" vs "Metodologia GAIA")
+        f9 = self.sub1 / "Metodologia AAII.md"
+        f9.write_text("content 9", encoding="utf-8")
+        f10 = self.sub2 / "Metodologia GAIA.md"
+        f10.write_text("content 10", encoding="utf-8")
+
+        dupes = find_duplicates.find_duplicates(str(self.vault))
+
+        # We should find both groups
+        self.assertIn("L'ambiente e le sue proprietà", dupes)
+        self.assertEqual(set(dupes["L'ambiente e le sue proprietà"]), {str(f1.resolve()), str(f2.resolve())})
+
+        self.assertIn("2. La cellula", dupes)
+        self.assertEqual(set(dupes["2. La cellula"]), {str(f3.resolve()), str(f4.resolve())})
+
+        # Check date files behavior
+        self.assertNotIn("2026-05-24", dupes)
+        self.assertNotIn("2025-05-24", dupes)
+        self.assertIn("2026-05-25", dupes)
+        self.assertEqual(set(dupes["2026-05-25"]), {str(f7.resolve()), str(f8.resolve())})
+
+        # Check that different acronyms are not matched
+        self.assertNotIn("Metodologia AAII", dupes)
+        self.assertNotIn("Metodologia GAIA", dupes)
 
     def test_gather_payload_with_dates(self):
         # Create a duplicate with frontmatter date

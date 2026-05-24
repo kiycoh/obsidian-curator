@@ -83,7 +83,7 @@ python3 <COMMON_DIR>/linter.py --operations /tmp/enrich_ops.json
 > [!NOTE]
 > The `--hub` flag is optional. When omitted, the linter reads each operation's `hub` field directly from the ops JSON for per-file wikilink validation. This supports batch mode with multiple distinct hubs.
 
-**[EMOTION PROMPT: Do not trust optimistic linting. Scrutinize the linter's output for atomicity violations, tag malformations, or orphaned wikilinks. If a note fails this check, you must intercept the failure and halt. Rigor over speed.]**
+**[EMOTION PROMPT: Do not trust optimistic linting. Scrutinize the linter's output for atomicity violations, tag malformations, or orphaned wikilinks. Note: High-density academic enrichment may trigger 'Note too long' warnings; prioritize factual completeness over strict line limits, but ALWAYS fix 'Missing wikilink' errors. If a critical failure occurs, intercept and halt. Rigor over speed.]**
 
 ---
 
@@ -136,15 +136,14 @@ block a reformat because extraction is unconfigured.
 
 ---
 
-## Scripts & Tools
-
-The mechanical operations of the Refiner are driven by scripts inside `<REFINER_SCRIPTS_DIR>`:
-- `scripts/batch_refine.py` — Phase 1 orchestrator. Run via `execute_code`: `python3 <REFINER_SCRIPTS_DIR>/batch_refine.py --folder "<TARGET_FOLDER>" [--dry-run]`
-- `scripts/inspect_note.py` — Single-note diagnostic (imported by `batch_refine.py`). Run standalone via: `python3 <REFINER_SCRIPTS_DIR>/inspect_note.py --note "<PATH_TO_NOTE>" [--out "<OUT_JSON>"]`
-- `scripts/split_monolith.py` — Decouple mode planner (imported by `batch_refine.py`). Run standalone via: `python3 <REFINER_SCRIPTS_DIR>/split_monolith.py --note "<PATH_TO_NOTE>" --parent-folder "<PARENT_FOLDER>" --hub "<HUB_NAME>" --out "<OUT_OPS_JSON>"`
-- `scripts/normalize_frontmatter.py` — YAML tag normalizer (imported by `batch_refine.py`). Run standalone via: `python3 <REFINER_SCRIPTS_DIR>/normalize_frontmatter.py --note "<PATH_TO_NOTE>" [--write | --out "<OUT_OPS_JSON>"]`
-- `<COMMON_DIR>/bulk_writer.py` — Phase 2/3 bulk mutation executor.
-- `<COMMON_DIR>/linter.py` — Phase 4 validator. Supports per-op hub fallback when `--hub` is omitted.
+- **Scripts & Tools**
+  - `scripts/batch_refine.py` — Phase 1 orchestrator.
+  - `scripts/inspect_note.py` — Single-note diagnostic.
+  - `scripts/split_monolith.py` — Decouple mode planner.
+  - `scripts/normalize_frontmatter.py` — YAML tag normalizer.
+  - `scripts/fix_hub_links.py` — Post-enrichment utility to force-append missing hub wikilinks.
+  - `<COMMON_DIR>/bulk_writer.py` — Phase 2/3 bulk mutation executor.
+  - `<COMMON_DIR>/linter.py` — Phase 4 validator.
 
 ---
 
@@ -213,13 +212,12 @@ graph TD
 - **Atomicity** — if a Spoke would exceed 40 lines, split further (sub-Spoke or sub-section). Do not loosen the limit.
 - **JSON Parsing in execute_code** — `read_file` returns content prefixed with line numbers (`LINE|CONTENT`). When reading ops or queue JSONs in Python, use `terminal(f'cat {path}')` or strip the line prefixes before `json.loads()` to avoid `JSONDecodeError`.
 - **Enrichment Timeouts** — Heavy web enrichment tasks can trigger subagent timeouts (600s). If the `enrich_queue.json` is large, partition the tasks into smaller batches (e.g., 3-5 notes per delegation) to ensure completion.
-- **Spoke linkback** — every Spoke must contain `[[Hub Title]]` in the
-  body (not frontmatter). The Phase 4 validator enforces this.
+- **Hub Linkback** — Every note (Spoke or Enriched) must contain a `[[Hub Title]]` link in the body (e.g., in a `# Relazioni` section), not just in frontmatter. Subagents often omit this; explicitly demand it in the delegation prompt to prevent linter failures. If subagents omit it, do not re-run enrichment; use a post-processing script to append the link to the bottom of the file.
+- **Enrichment vs. Size Limits** — High-density academic enrichment often triggers linter "Note too long/large" warnings. If the content is justified and cohesive, these warnings can be accepted. If the note becomes a monolith, it should be moved to 'Decouple' mode for splitting.
 - **No orphans** — never create a Spoke without updating the Hub's index.
   Order operations: write all Spokes first, then rewrite the Hub last with
   the complete Spoke list.
 - **Atomicity** — if a Spoke would exceed 40 lines, split further (sub-Spoke
   or sub-section). Do not loosen the limit.
-- **Enrich + bad tags overlap** — a lean note may also have malformed YAML tags.
-  `batch_refine.py` handles this by normalizing tags deterministically first,
-  then queuing the note for LLM enrichment. Both actions are applied.
+- **Enrich + bad tags overlap** — a lean note may also have malformed YAML tags. `batch_refine.py` handles this by normalizing tags deterministically first, then queuing the note for LLM enrichment. Both actions are applied.
+- **Semantic Overlap** — When enriching, you may encounter notes with near-identical titles. Analyze if they represent different theoretical angles (e.g., two different authors on the same topic). If complementary, use bidirectional wikilinks rather than merging.

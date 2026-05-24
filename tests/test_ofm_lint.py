@@ -266,6 +266,16 @@ class TestOFMLintStructural(unittest.TestCase):
         self.assertEqual(wl_violations, [],
                          f"Inline code [[ should not trigger: {wl_violations}")
 
+    def test_literal_newline_sequence_in_body(self):
+        """Literal \\n in body outside code blocks must trigger violation."""
+        r = ofm_lint(self._note("# T\n\nSome text\\nwith literal newline"), stem="T")
+        self.assertIn("literal '\\n' character sequence detected in body", r["violations"])
+
+    def test_literal_newline_sequence_in_code_block_ok(self):
+        """Literal \\n inside code blocks must NOT trigger violation."""
+        r = ofm_lint(self._note("# T\n\n```python\nprint('hello\\nworld')\n```"), stem="T")
+        self.assertNotIn("literal '\\n' character sequence detected in body", r["violations"])
+
 
 if __name__ == "__main__":
     unittest.main()

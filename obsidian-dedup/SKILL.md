@@ -21,6 +21,8 @@ This skill requires:
 
 ## Deduplication Workflow
 
+**Warning:** Vault paths frequently contain spaces. When constructing commands in `execute_code`, always use `shell_quote()` for all path arguments to prevent `argparse` errors.
+
 - **Phase 1 — Locate Duplicates**:
   Run the duplicate locator script using `execute_code`:
   ```bash
@@ -32,7 +34,7 @@ This skill requires:
   python3 ~/.hermes/skills/note-taking/obsidian-dedup/scripts/gather_merge_payload.py --duplicates /tmp/dupes.json --out /tmp/merge_payload.json
   ```
 - **Phase 2 — Semantic Unification**:
-  Read `/tmp/merge_payload.json` in one shot. Select a single canonical target path (usually the most relevant subdirectory). Integrate all facts, definitions, and formatting from the duplicates into a single, cohesive canonical note body without losing technical details or references. Plan bulk writer operations: one `overwrite` operation for the canonical note, and one `delete` operation per obsolete duplicate file.
+  Read `/tmp/merge_payload.json` in one shot. Select a single canonical target path (usually the most relevant subdirectory). Integrate all facts, definitions, and formatting from the duplicates into a single, cohesive canonical note body without losing technical details or references. **Crucially, synthesize the YAML frontmatter by merging tags, related notes, and parent references from all variants, and ensure `AI: true` is preserved if present.** Plan bulk writer operations: one `overwrite` operation for the canonical note, and one `delete` operation per obsolete duplicate file.
 - **Phase 3 — Execution & Cleanup**:
   Apply the plan via the bulk writer:
   ```bash
@@ -51,4 +53,6 @@ This skill requires:
   1. The information is pure semantic/formatting noise.
   2. The model is rewriting/expanding that same concept in a more thorough, detailed, and academically rigorous manner.
   3. The model has verified via `web_search` that the original phrase, definition, or formula is factually incorrect.
+- **Frontmatter Preservation**: Failure to synthesize and include the YAML frontmatter (especially `AI: true` and `parent note`) will cause `linter.py` to fail. Always merge the metadata from all variants into the canonical note.
+- **Atomicity Risk**: Merging multiple notes may create a "monolith" that exceeds the vault's length limits. If the resulting note is too long, the linter will fail; in such cases, treat the canonical note as a candidate for the `obsidian-refiner` pipeline.
 - **Enrichment Trigger**: If the unified note contains **fewer than 600 characters**, it must be enriched with external web sources.

@@ -131,6 +131,12 @@ def ofm_lint(content, stem=None):
     # --- OFM structural integrity ---
     V += _balanced(body)
 
+    # Detect literal '\n' character sequence in non-code body
+    naked = FENCE_RE.sub("", body)
+    naked = re.sub(r'`[^`\n]*`', '', naked)
+    if "\\n" in naked:
+        V.append("literal '\\n' character sequence detected in body")
+
     for t in CALLOUT_RE.findall(body):
         if t.lower() not in CALLOUT_TYPES:
             V.append(f"unknown callout type [!{t}]")

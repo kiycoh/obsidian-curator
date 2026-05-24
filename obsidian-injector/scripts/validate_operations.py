@@ -182,19 +182,23 @@ def main():
                 continue
             
             expected_path = expected_collision_paths.get((source_basename, heading))
-            if not expected_path:
-                rejected_ops.append({
-                    "op": op,
-                    "reason": f"Concept '{heading}' has no vault collision in the payload; cannot patch"
-                })
-                continue
-                
-            if os.path.abspath(path) != os.path.abspath(expected_path):
-                rejected_ops.append({
-                    "op": op,
-                    "reason": f"Path '{path}' does not match expected collision path '{expected_path}'"
-                })
-                continue
+            path_abs = os.path.abspath(path)
+            
+            if expected_path:
+                if path_abs != os.path.abspath(expected_path):
+                    rejected_ops.append({
+                        "op": op,
+                        "reason": f"Path '{path}' does not match expected collision path '{expected_path}'"
+                    })
+                    continue
+            else:
+                # Coerced from write or untracked: verify it is within the target folder
+                if not path_abs.startswith(target_dir_abs):
+                    rejected_ops.append({
+                        "op": op,
+                        "reason": f"Coerced patch path '{path}' is not within the target folder '{target_dir_abs}'"
+                    })
+                    continue
 
             if not os.path.exists(path):
                 rejected_ops.append({
